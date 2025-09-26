@@ -65,18 +65,17 @@ def main() -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = output_dir / f"live_run_{timestamp}.txt"
 
+    final_text = result if isinstance(result, str) else json.dumps(result, indent=2)
+
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("CCN Live Run Capture\n")
         handle.write(f"Timestamp: {timestamp}\n")
         handle.write(f"Query: {query}\n")
         handle.write("=" * 80 + "\n\n")
         handle.write("Final Synthesis:\n")
-        handle.write(result + "\n\n")
+        handle.write(final_text + "\n\n")
 
         for role_id in ordered_roles:
-            # Skip contract roles if user only wants worker outputs
-            if role_id in {"REFORMULATOR", "ELUCIDATOR"}:
-                continue
             entry = role_logs[role_id]
             handle.write("-" * 80 + "\n")
             handle.write(f"Role: {role_id}\n")
