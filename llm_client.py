@@ -52,7 +52,6 @@ class LLMClient:
                 messages=messages,
                 temperature=temperature,
                 max_completion_tokens=max_tokens,
-                reasoning_effort=reasoning_effort,
                 response_format=response_format
             )
             
