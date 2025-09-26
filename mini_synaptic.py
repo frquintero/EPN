@@ -119,7 +119,7 @@ class NodeTemplates:
         kv_list.add('attributes.instructions', 
             'Reformulate the user input into a clear, actionable question. '
             'Return JSON: {"reformulated_question": "<your reformulated text>"}')
-        kv_list.add('llm_config.model', 'llama-3.1-70b-versatile')
+        kv_list.add('llm_config.model', 'llama-3.3-70b-versatile')
         kv_list.add('llm_config.temperature', 0.1)
         kv_list.add('llm_config.max_tokens', 1024)
         kv_list.add('llm_config.reasoning_effort', 'low')
@@ -137,7 +137,7 @@ class NodeTemplates:
             'Break down the reformulated question into maximum 4 specific tasks. '
             'The final task must be for SYNTHESIZER. '
             'Return JSON: {"tasks": [["task 1", "ROLE: <ROLE_NAME>. <description> RESPONSE_JSON: {...}"], ...]}')
-        kv_list.add('llm_config.model', 'llama-3.1-70b-versatile')
+        kv_list.add('llm_config.model', 'llama-3.3-70b-versatile')
         kv_list.add('llm_config.temperature', 0.1)
         kv_list.add('llm_config.max_tokens', 2048)
         kv_list.add('llm_config.reasoning_effort', 'medium')
@@ -155,7 +155,7 @@ class NodeTemplates:
         kv_list.add('attributes.instructions',
             'Execute the assigned task and return the result. '
             'Return JSON: {"node_output_signal": "<your output>"}')
-        kv_list.add('llm_config.model', 'llama-3.1-70b-versatile')
+        kv_list.add('llm_config.model', 'llama-3.3-70b-versatile')
         kv_list.add('llm_config.temperature', 0.1)
         kv_list.add('llm_config.max_tokens', 2048)
         kv_list.add('llm_config.reasoning_effort', 'low')
@@ -172,7 +172,7 @@ class NodeTemplates:
         kv_list.add('attributes.instructions',
             'Synthesize the outputs from all worker roles into a coherent final response. '
             'Return JSON: {"node_output_signal": "<final synthesized output>"}')
-        kv_list.add('llm_config.model', 'llama-3.1-70b-versatile')
+        kv_list.add('llm_config.model', 'llama-3.3-70b-versatile')
         kv_list.add('llm_config.temperature', 0.1)
         kv_list.add('llm_config.max_tokens', 4096)
         kv_list.add('llm_config.reasoning_effort', 'high')

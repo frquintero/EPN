@@ -66,7 +66,7 @@ class WorkerNode:
         try:
             response = self.llm_client.call_completion(
                 prompt=prompt,
-                model=role.llm_config.get('model', 'llama-3.1-70b-versatile'),
+                model=role.llm_config.get('model', 'llama-3.3-70b-versatile'),
                 temperature=role.llm_config.get('temperature', 0.1),
                 max_tokens=role.llm_config.get('max_tokens', 4096),
                 reasoning_effort=role.llm_config.get('reasoning_effort', 'low'),

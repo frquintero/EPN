@@ -154,7 +154,7 @@ SYNTHESIZER → Final Synthesis
 Default configuration for all roles:
 ```python
 {
-    "model": "llama-3.1-70b-versatile",
+    "model": "llama-3.3-70b-versatile",
     "temperature": 0.1,
     "max_tokens": 4096,
     "reasoning_effort": "low",

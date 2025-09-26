@@ -55,7 +55,7 @@ class MaterializedRole:
         """Set default LLM config if not provided."""
         if not self.llm_config:
             self.llm_config = {
-                "model": "llama-3.1-70b-versatile",
+                "model": "llama-3.3-70b-versatile",
                 "temperature": 0.1,
                 "max_tokens": 4096,
                 "reasoning_effort": "low",

@@ -27,7 +27,7 @@ class LLMClient:
     def call_completion(
         self,
         prompt: str,
-        model: str = "llama-3.1-70b-versatile",
+        model: str = "llama-3.3-70b-versatile",
         temperature: float = 0.1,
         max_tokens: int = 4096,
         reasoning_effort: str = "low",
