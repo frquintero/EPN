@@ -107,7 +107,7 @@ def show_configuration_options():
     print("• GROQ_API_KEY (required) - Your Groq API key")
     print()
     print("LLM Configuration (per role):")
-    print("• model: llama-3.3-70b-versatile")
+    print("• model: openai/gpt-oss-120b")
     print("• temperature: 0.1")
     print("• max_tokens: 4096")
     print("• reasoning_effort: low/medium/high")

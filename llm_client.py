@@ -3,6 +3,7 @@
 import os
 import json
 from typing import Any, Dict, Optional
+from llm_config import get_default_llm_config
 from groq import Groq
 
 
@@ -27,21 +28,30 @@ class LLMClient:
     def call_completion(
         self,
         prompt: str,
-        model: str = "llama-3.3-70b-versatile",
-        temperature: float = 0.1,
-        max_tokens: int = 4096,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
         reasoning_effort: str = "low",
         response_format: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Call Groq chat completion."""
-        
+        # Fall back to centralized defaults if any parameter is missing
+        defaults = get_default_llm_config()
+        if model is None:
+            model = defaults["model"]
+        if temperature is None:
+            temperature = defaults["temperature"]
+        if max_tokens is None:
+            max_tokens = defaults["max_tokens"]
         if response_format is None:
-            response_format = {"type": "json_object"}
+            response_format = defaults["response_format"]
         
         try:
-            messages = [
-                {"role": "user", "content": prompt}
-            ]
+            messages = []
+            # Add a system hint to satisfy providers that require explicit JSON mention
+            if response_format.get("type") == "json_object":
+                messages.append({"role": "system", "content": "Return only JSON. Respond with a valid JSON object."})
+            messages.append({"role": "user", "content": prompt})
             
             # Add assistant priming for JSON
             if response_format.get("type") == "json_object":

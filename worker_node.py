@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 from mini_memory import MaterializedRole, CCNEvent
+from llm_config import merge_llm_config
 from llm_client import LLMClient, LLMError
 
 
@@ -64,13 +65,14 @@ class WorkerNode:
         )
         
         try:
+            params = merge_llm_config(role.llm_config)
             response = self.llm_client.call_completion(
                 prompt=prompt,
-                model=role.llm_config.get('model', 'llama-3.3-70b-versatile'),
-                temperature=role.llm_config.get('temperature', 0.1),
-                max_tokens=role.llm_config.get('max_tokens', 4096),
-                reasoning_effort=role.llm_config.get('reasoning_effort', 'low'),
-                response_format=role.llm_config.get('response_format', {'type': 'json_object'})
+                model=params.get('model'),
+                temperature=params.get('temperature'),
+                max_tokens=params.get('max_tokens'),
+                reasoning_effort=params.get('reasoning_effort'),
+                response_format=params.get('response_format')
             )
             
             return response

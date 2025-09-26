@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Deque
 from collections import deque
 from datetime import datetime
 import json
+from llm_config import get_default_llm_config
 
 
 @dataclass
@@ -54,13 +55,7 @@ class MaterializedRole:
     def __post_init__(self):
         """Set default LLM config if not provided."""
         if not self.llm_config:
-            self.llm_config = {
-                "model": "llama-3.3-70b-versatile",
-                "temperature": 0.1,
-                "max_tokens": 4096,
-                "reasoning_effort": "low",
-                "response_format": {"type": "json_object"}
-            }
+            self.llm_config = get_default_llm_config()
 
 
 @dataclass
