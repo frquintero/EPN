@@ -16,8 +16,12 @@ class SynapticKV:
     
     def __post_init__(self):
         """Validate key format."""
+        if self.key in {'call_plan', 'call_args'}:
+            return
         if not self.key.startswith(('attributes.', 'llm_config.')):
-            raise ValueError(f"Invalid key '{self.key}': must start with 'attributes.' or 'llm_config.'")
+            raise ValueError(
+                f"Invalid key '{self.key}': must start with 'attributes.' or 'llm_config.' or be call_plan/call_args"
+            )
 
 
 @dataclass
@@ -51,6 +55,8 @@ class MaterializedRole:
     tasks: List[str] = field(default_factory=list)
     instructions: str = ""
     llm_config: Dict[str, Any] = field(default_factory=dict)
+    call_plan: List[str] = field(default_factory=list)
+    call_args: Dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
         """Set default LLM config if not provided."""
@@ -108,9 +114,13 @@ class MEMORY:
     archive: List[PerRoleRecord] = field(default_factory=list)
     aggregator_buffer: List[Any] = field(default_factory=list)
     run_log: List[CCNEvent] = field(default_factory=list)
+    worklist_capacity: int = 100
+    aggregator_capacity: int = 100
     
     def add_to_worklist(self, synaptic_list: SynapticKVList) -> None:
         """Add SYNAPTIC list to worklist."""
+        if len(self.worklist) >= self.worklist_capacity:
+            raise ValueError(f"Worklist capacity exceeded ({self.worklist_capacity})")
         self.worklist.append(synaptic_list)
     
     def pop_from_worklist(self) -> Optional[SynapticKVList]:
@@ -125,6 +135,8 @@ class MEMORY:
     
     def add_to_aggregator(self, data: Any) -> None:
         """Add data to aggregator buffer."""
+        if len(self.aggregator_buffer) >= self.aggregator_capacity:
+            raise ValueError(f"Aggregator capacity exceeded ({self.aggregator_capacity})")
         self.aggregator_buffer.append(data)
     
     def log_event(self, event: CCNEvent) -> None:

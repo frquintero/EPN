@@ -99,11 +99,19 @@ def main(query: str, debug: bool, strict: bool, output: Optional[str], validate_
             
             # Show execution summary
             summary = ccn.get_execution_summary()
+            metrics = ccn.get_metrics()
             console.print(f"\n[bold]Execution Summary:[/bold]")
             console.print(f"  Roles executed: {', '.join(summary['roles_executed'])}")
             console.print(f"  Archive records: {summary['archive_size']}")
             console.print(f"  Events logged: {summary['events_count']}")
             console.print(f"  Aggregator entries: {summary['aggregator_size']}")
+
+            console.print("\n[bold]Metrics (JSON):[/bold]")
+            console.print(json.dumps(metrics))
+
+            console.print("\n[bold]Event Log (JSON lines):[/bold]")
+            for event in ccn.memory.run_log:
+                console.print(json.dumps(event.to_dict()))
             
             # Validate archive if strict mode
             if strict:

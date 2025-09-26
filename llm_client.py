@@ -24,6 +24,7 @@ class LLMClient:
             raise ValueError("GROQ_API_KEY environment variable is required")
         
         self.client = Groq(api_key=api_key)
+        self._last_raw_response: Optional[str] = None
     
     def call_completion(
         self,
@@ -66,6 +67,7 @@ class LLMClient:
             )
             
             content = completion.choices[0].message.content
+            self._last_raw_response = content
             
             # Handle JSON response
             if response_format.get("type") == "json_object":
@@ -82,6 +84,11 @@ class LLMClient:
             
         except Exception as e:
             raise LLMError(f"LLM call failed: {str(e)}")
+
+    @property
+    def last_raw_response(self) -> Optional[str]:
+        """Return raw content from the most recent LLM call."""
+        return self._last_raw_response
     
     def test_connection(self) -> bool:
         """Test API connection."""

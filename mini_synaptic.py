@@ -25,7 +25,9 @@ class SynapticParser:
         'llm_config.temperature',
         'llm_config.max_tokens',
         'llm_config.reasoning_effort',
-        'llm_config.response_format'
+        'llm_config.response_format',
+        'call_plan',
+        'call_args'
     }
     
     KEY_TYPES = {
@@ -39,7 +41,9 @@ class SynapticParser:
         'llm_config.temperature': (int, float),
         'llm_config.max_tokens': int,
         'llm_config.reasoning_effort': str,
-        'llm_config.response_format': dict
+        'llm_config.response_format': dict,
+        'call_plan': list,
+        'call_args': dict
     }
     
     @classmethod
@@ -61,6 +65,9 @@ class SynapticParser:
         """Validate entire SYNAPTIC list."""
         seen_keys = set()
         
+        call_plan = None
+        call_args = None
+
         for kv in synaptic_list.kvs:
             cls.validate_kv(kv)
             
@@ -68,12 +75,36 @@ class SynapticParser:
             if kv.key in seen_keys:
                 raise ValidationError(f"Duplicate key '{kv.key}' in SYNAPTIC list")
             seen_keys.add(kv.key)
-        
+            if kv.key == 'call_plan':
+                call_plan = kv.value
+            elif kv.key == 'call_args':
+                call_args = kv.value
+
         # Validate required keys for materialization
         required_keys = {'attributes.node_id', 'attributes.entry_id'}
         missing_keys = required_keys - seen_keys
         if missing_keys:
             raise ValidationError(f"Missing required keys: {missing_keys}")
+
+        if call_plan is not None:
+            if not call_plan:
+                raise ValidationError("call_plan cannot be empty")
+            allowed_items = ["prompt_call", "emit"]
+            last_index = -1
+            seen_plan_items = set()
+            for item in call_plan:
+                if item not in allowed_items:
+                    raise ValidationError(f"call_plan contains invalid item '{item}'")
+                item_index = allowed_items.index(item)
+                if item_index <= last_index:
+                    raise ValidationError("call_plan items must follow canonical order [prompt_call, emit]")
+                if item in seen_plan_items:
+                    raise ValidationError(f"call_plan contains duplicate item '{item}'")
+                seen_plan_items.add(item)
+                last_index = item_index
+
+        if call_args is not None and call_args != {}:
+            raise ValidationError("call_args must be an empty object for MVP")
     
     @classmethod
     def materialize_role(cls, synaptic_list: SynapticKVList) -> MaterializedRole:
@@ -88,13 +119,19 @@ class SynapticParser:
         tasks = synaptic_list.get('attributes.tasks', [])
         instructions = synaptic_list.get('attributes.instructions', '')
         
-        # Extract LLM config
+        # Extract LLM config and call plan/args
         llm_config = {}
+        call_plan: List[str] = []
+        call_args: Dict[str, Any] = {}
         for kv in synaptic_list.kvs:
             if kv.key.startswith('llm_config.'):
                 config_key = kv.key.replace('llm_config.', '')
                 llm_config[config_key] = kv.value
-        
+            elif kv.key == 'call_plan':
+                call_plan = kv.value
+            elif kv.key == 'call_args':
+                call_args = kv.value
+
         return MaterializedRole(
             node_id=node_id,
             entry_id=entry_id,
@@ -102,7 +139,9 @@ class SynapticParser:
             node_output_signal=node_output_signal,
             tasks=tasks,
             instructions=instructions,
-            llm_config=llm_config
+            llm_config=llm_config,
+            call_plan=call_plan,
+            call_args=call_args
         )
 
 
@@ -137,16 +176,14 @@ class NodeTemplates:
         return kv_list
     
     @staticmethod
-    def create_worker_role(task_text: str, input_signal: str, role_name: str, task_index: int) -> SynapticKVList:
-        """Create worker role from ELUCIDATOR task."""
+    def create_worker_role(role_name: str, task_index: int) -> SynapticKVList:
+        """Create worker role placeholder from ELUCIDATOR task."""
         kv_list = SynapticKVList()
         kv_list.add('attributes.node_id', role_name)
-        kv_list.add('attributes.entry_id', f'{role_name.lower()}_00{task_index + 1}')
-        kv_list.add('attributes.input_signals', [input_signal])
-        kv_list.add('attributes.tasks', [task_text])
-        kv_list.add('attributes.instructions',
-            'Execute the assigned task and return the result. '
-            'Return JSON: {"node_output_signal": "<your output>"}')
+        kv_list.add('attributes.entry_id', f'{role_name.lower()}_{task_index:03}')
+        kv_list.add('attributes.input_signals', [])
+        kv_list.add('attributes.tasks', [])
+        kv_list.add('attributes.instructions', '')
         # LLM config is centralized; rely on defaults/env. No per-role values needed here.
         return kv_list
     
