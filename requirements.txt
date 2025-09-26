@@ -1,0 +1,4 @@
+groq>=0.4.0
+jsonschema>=4.20.0
+rich>=13.7.0
+click>=8.1.0
