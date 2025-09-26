@@ -83,6 +83,7 @@ class MiniCCN:
             'role_name': role_name,
             'description': description,
             'response_schema': response_schema,
+            'response_schema_text': response_segment,
             'raw_text': raw_text
         }
 
@@ -139,10 +140,15 @@ class MiniCCN:
             schema_text = json.dumps(spec['response_schema'], indent=2)
             target_role.instructions = (
                 f"{spec['description']}\n\n"
-                "Respond with valid JSON that matches this schema exactly (no extra fields):\n"
-                f"{schema_text}"
+                "Respond with valid JSON only. Use the schema shown below and do not introduce additional keys.\n"
+                f"Schema (human-readable):\n{schema_text}\n\n"
+                "Your output MUST be a JSON object with a single key `node_output_signal`.\n"
+                "Return exactly this JSON object (replace placeholder text with your answer):\n"
+                f"{spec['response_schema_text']}\n"
+                "Example: {\"node_output_signal\": \"<your answer>\"}"
             )
             target_role.llm_config.setdefault('response_format', {'type': 'json_object'})
+            target_role.llm_config['temperature'] = 0.0
             if not target_role.call_plan:
                 target_role.call_plan = ['prompt_call', 'emit']
             return target_role
@@ -164,10 +170,15 @@ class MiniCCN:
             target_role.instructions = (
                 f"{spec['description']}\n\n"
                 "You are provided with worker outputs in Input[1] as JSON."
-                " Produce a synthesis and respond with JSON matching this schema exactly (no extra fields):\n"
-                f"{schema_text}"
+                " Produce a synthesis and respond with JSON matching this schema exactly (no extra fields).\n"
+                f"Schema (human-readable):\n{schema_text}\n\n"
+                "Your output MUST be a JSON object with a single key `node_output_signal`.\n"
+                "Return exactly this JSON object (replace placeholder text with your answer):\n"
+                f"{spec['response_schema_text']}\n"
+                "Example: {\"node_output_signal\": \"<your answer>\"}"
             )
             target_role.llm_config.setdefault('response_format', {'type': 'json_object'})
+            target_role.llm_config['temperature'] = 0.0
             if not target_role.call_plan:
                 target_role.call_plan = ['prompt_call', 'emit']
             return target_role
