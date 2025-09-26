@@ -145,10 +145,10 @@ class MiniCCN:
                 "Your output MUST be a JSON object with a single key `node_output_signal`.\n"
                 "Return exactly this JSON object (replace placeholder text with your answer):\n"
                 f"{spec['response_schema_text']}\n"
-                "Example: {\"node_output_signal\": \"<your answer>\"}"
+                "Example: {\"node_output_signal\": \"<your answer>\"}\n"
+                f"RESPONSE_JSON: {spec['response_schema_text']}"
             )
             target_role.llm_config.setdefault('response_format', {'type': 'json_object'})
-            target_role.llm_config['temperature'] = 0.0
             if not target_role.call_plan:
                 target_role.call_plan = ['prompt_call', 'emit']
             return target_role
@@ -175,10 +175,10 @@ class MiniCCN:
                 "Your output MUST be a JSON object with a single key `node_output_signal`.\n"
                 "Return exactly this JSON object (replace placeholder text with your answer):\n"
                 f"{spec['response_schema_text']}\n"
-                "Example: {\"node_output_signal\": \"<your answer>\"}"
+                "Example: {\"node_output_signal\": \"<your answer>\"}\n"
+                f"RESPONSE_JSON: {spec['response_schema_text']}"
             )
             target_role.llm_config.setdefault('response_format', {'type': 'json_object'})
-            target_role.llm_config['temperature'] = 0.0
             if not target_role.call_plan:
                 target_role.call_plan = ['prompt_call', 'emit']
             return target_role
