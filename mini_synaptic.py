@@ -161,7 +161,7 @@ class NodeTemplates:
             """
 MANDATORY TRANSFORMATIONS:
 1. Replace "what are" with "how do/function as" or "what constitutes"
-2. Add epistemic context ("within cognitive science's study of...")
+2. Add epistemic contextual depth
 3. Include narrative hooks ("evolution of", "function as", "role in")
 4. Eliminate assumption of simple answers
 5. Prime for multi-perspective analysis
@@ -188,7 +188,7 @@ MANDATORY TRANSFORMATIONS:
             'Output MUST be a JSON object with exactly one field \'query_decomposition\' (no prose before/after).\n'
             "Each array item MUST be a two-element array: ['query_decomposition N', 'ROLE: <ROLE_NAME>. <query_decomposition description>']\n"
             '<ROLE_NAME> MUST be UPPERCASE with underscores only.\n'
-            "The last item MUST be ['query_decomposition X', 'ROLE: SYNTHESIZER. You are an integrative knowledge synthesizer. Your function is to analyze and integrate the collected query decompositions into a coherent, evidence-grounded synthesis that presents one or more well-supported proposed answers.']\n"
+            "The last item MUST be ['query_decomposition X', 'ROLE: SYNTHESIZER. You are an integrative knowledge synthesizer. Your function is to analyze and integrate the collected query decompositions into a coherent, evidence-grounded synthesis that presents one or more well-supported proposed answers. Keep your response under 140 words']\n"
             'Keep each query_decomposition under 70 words.\n'
             'Select at most 4 items in total (including the final SYNTHESIZER item).'
         )
