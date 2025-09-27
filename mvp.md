@@ -80,7 +80,7 @@ Output: JSON only `{ "reformulated_question": "<text>" }`.
 ## Prompt Construction (guide)
 
 - Sources: attributes.input_signals (index 0 is the authoritative decomposition string for worker roles), attributes.instructions (role-specific), llm_config.
-- Layout: header (Role), Inputs (Input[i]: ...), optional Instructions. No fallbacks. Worker roles and SYNTHESIZER must return `{ "node_output_signal": "<text>" }`; REFORMULATOR and ELUCIDATOR must return their respective envelopes as above.
+- Layout: header (Role), Inputs (Input[i]: ...), optional Instructions. No fallbacks. Worker roles and SYNTHESIZER must return `{ "node_output_signal": "<text>" }`; REFORMULATOR and ELUCIDATOR must return their respective envelopes as above. Worker roles should keep outputs ≤70 words; SYNTHESIZER ≤140 words.
 - Log before LLM call: record a `prompt_window` (prompt text + llm_config).
 
 ## Call Plan Overrides (MVP)

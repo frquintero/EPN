@@ -203,7 +203,8 @@ MANDATORY TRANSFORMATIONS:
         kv_list.add('attributes.entry_id', f'{role_name.lower()}_{task_index:03}')
         kv_list.add('attributes.input_signals', [])
         kv_list.add('attributes.tasks', [])
-        kv_list.add('attributes.instructions', '')
+        # Keep worker outputs concise for downstream synthesis and auditing
+        kv_list.add('attributes.instructions', 'Keep your response under 70 words.')
         # LLM config is centralized; rely on defaults/env. No per-role values needed here.
         return kv_list
     

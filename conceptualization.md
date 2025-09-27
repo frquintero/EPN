@@ -115,7 +115,7 @@ executing them in FIFO order.
   - Emit: `{ "query_decomposition": [[label, qd_string], ...] }`
   - Bind: for each item, worker `node_id` from qd_string; worker `input_signals[0] = qd_string`
 - Worker roles
-  - Emit: `{ "node_output_signal": "<text>" }`
+  - Emit: `{ "node_output_signal": "<text>" }` (keep under 70 words)
   - CCN: append to Aggregator Buffer (not bound to the “next worker”)
 - SYNTHESIZER
   - Inputs: `input_signals[0] = JSON.stringify(aggregator_buffer)`
@@ -319,8 +319,9 @@ renders the final text sent to the LLM.
     - Instructions: the full `attributes.instructions` string (if present)
   - All roles MUST return strict JSON. Expected envelopes: REFORMULATOR →
     `{ "reformulated_question": "<text>" }`; ELUCIDATOR →
-    `{ "query_decomposition": [[label, qd_string], ...] }`; Worker roles and
-    SYNTHESIZER → `{ "node_output_signal": "<text>" }`.
+    `{ "query_decomposition": [[label, qd_string], ...] }`; Worker roles →
+    `{ "node_output_signal": "<text>" }` (≤70 words); SYNTHESIZER →
+    `{ "node_output_signal": "<text>" }` (≤140 words).
 
 - Note on defaults (design intent, not a fallback)
   - If any field is omitted in the Role’s SYNAPTIC KV list, CCN materializes

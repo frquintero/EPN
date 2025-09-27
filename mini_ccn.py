@@ -306,10 +306,8 @@ class MiniCCN:
             
             # Add to aggregator buffer
             # Append a formatted item that carries the original decomposition header and the worker output
-            header = role.input_signals[0] if role.input_signals else f"ROLE: {role.node_id}"
-            formatted = f"{header}\n\nOUTPUT:\n{result}"
             try:
-                self.memory.add_to_aggregator(formatted)
+                self.memory.add_to_aggregator(result)
             except ValueError as exc:
                 raise CCNError(str(exc))
             self.memory.log_event(CCNEvent(
