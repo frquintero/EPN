@@ -122,7 +122,7 @@ class MiniCCN:
             target_role.entry_id = f"{role_name.lower()}_{spec['index']:03}"
             target_role.input_signals = [spec['raw_text']]
             target_role.tasks = []
-            target_role.instructions = ''
+            # Preserve any default worker instructions from the template (e.g., 70-word limit)
             target_role.llm_config.setdefault('response_format', {'type': 'json_object'})
             if not target_role.call_plan:
                 target_role.call_plan = ['prompt_call', 'emit']
