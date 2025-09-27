@@ -133,6 +133,7 @@ class MiniCCN:
                 raise CCNError("Synthesizer binding requires structured payload")
             spec = source_output.get('spec')
             aggregator_payload = source_output.get('aggregator')
+            reformulated_question = source_output.get('reformulated_question')
             if spec is None or aggregator_payload is None:
                 raise CCNError("Synthesizer binding missing specification or aggregator data")
 
@@ -140,10 +141,13 @@ class MiniCCN:
                 raise CCNError("Aggregator payload must be a list of worker outputs")
 
             # Bind full aggregator as the content input
-            # Provide one input per worker output to aid debugging and clarity
+            # Provide one input per worker output; optionally prepend the reformulated question
             if not all(isinstance(x, str) for x in aggregator_payload):
                 aggregator_payload = [json.dumps(x) if not isinstance(x, str) else x for x in aggregator_payload]
-            target_role.input_signals = list(aggregator_payload)
+            inputs = list(aggregator_payload)
+            if isinstance(reformulated_question, str) and reformulated_question:
+                inputs = [reformulated_question] + inputs
+            target_role.input_signals = inputs
             # Carry the ELUCIDATOR final decomposition string as the SYNTHESIZER directive
             # so it appears in the prompt per conceptualization.md
             target_role.tasks = []
@@ -356,7 +360,8 @@ class MiniCCN:
             raise CCNError("Missing synthesizer specification from ELUCIDATOR")
         role = self.bind_inputs('ELUCIDATOR', role, {
             'spec': self.synthesizer_spec,
-            'aggregator': list(self.memory.aggregator_buffer)
+            'aggregator': list(self.memory.aggregator_buffer),
+            'reformulated_question': self.reformulated_question
         })
 
         # Set as active
