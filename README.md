@@ -155,9 +155,9 @@ Default configuration for all roles:
 ```python
 {
     "model": "openai/gpt-oss-120b",
-    "temperature": 0.1,
-    "max_tokens": 4096,
-    "reasoning_effort": "low",
+    "temperature": 0.8,
+    "max_tokens": 8192,
+    "reasoning_effort": "medium",
     "response_format": {"type": "json_object"}
 }
 ```

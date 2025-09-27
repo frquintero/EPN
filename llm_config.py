@@ -14,11 +14,11 @@ from typing import Any, Dict, Optional
 @dataclass(frozen=True)
 class LLMDefaults:
     model: str = "openai/gpt-oss-120b"
-    temperature: float = 0.1
-    max_tokens: int = 4096
+    temperature: float = 0.8
+    max_tokens: int = 8192
     # Keep in structure for compatibility; not all models support it and the
     # client does not currently forward it to the API call.
-    reasoning_effort: str = "low"
+    reasoning_effort: str = "medium"
     response_format: Dict[str, Any] = None  # set via factory below
 
 
@@ -88,4 +88,3 @@ def merge_llm_config(overrides: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if not isinstance(merged.get("response_format"), dict):
         merged["response_format"] = _default_response_format()
     return merged
-

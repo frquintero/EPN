@@ -87,6 +87,17 @@ def main() -> None:
             handle.write("Parsed Response:\n")
             handle.write((entry.parsed_response or "<missing>") + "\n\n")
 
+        # Append aggregator buffer exactly as stored in MEMORY
+        handle.write("=" * 80 + "\n\n")
+        agg = list(ccn.memory.aggregator_buffer)
+        handle.write(f"Aggregator Buffer (count={len(agg)}):\n")
+        handle.write(json.dumps(agg, indent=2, ensure_ascii=False) + "\n\n")
+
+        # Append roles executed as recorded in archive (source of truth)
+        roles_executed = [rec.node_id for rec in ccn.memory.archive]
+        handle.write(f"Roles Executed (from archive, count={len(roles_executed)}):\n")
+        handle.write(json.dumps(roles_executed, indent=2, ensure_ascii=False) + "\n")
+
     print(f"Capture written to {output_path}")
 
 
