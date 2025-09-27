@@ -140,7 +140,10 @@ class MiniCCN:
                 raise CCNError("Aggregator payload must be a list of worker outputs")
 
             # Bind full aggregator as the content input
-            target_role.input_signals = [json.dumps(aggregator_payload, indent=2)]
+            # Provide one input per worker output to aid debugging and clarity
+            if not all(isinstance(x, str) for x in aggregator_payload):
+                aggregator_payload = [json.dumps(x) if not isinstance(x, str) else x for x in aggregator_payload]
+            target_role.input_signals = list(aggregator_payload)
             # Carry the ELUCIDATOR final decomposition string as the SYNTHESIZER directive
             # so it appears in the prompt per conceptualization.md
             target_role.tasks = []

@@ -75,7 +75,7 @@ Output: JSON only `{ "reformulated_question": "<text>" }`.
 - REFORMULATOR → ELUCIDATOR: parse JSON, extract `reformulated_question` → `attributes.input_signals[0]`.
 - ELUCIDATOR → Worker Roles: parse object, read `query_decomposition` (max 4 items). For each item `[label, qd_string]`, extract `<ROLE_NAME>` from `qd_string`, set `attributes.node_id = <ROLE_NAME>`, and bind the entire `qd_string` → `attributes.input_signals[0]`. Do not populate `attributes.tasks` unless required by the role.
 - Workers → SYNTHESIZER: append `node_output_signal` to Aggregator Buffer.
- - ELUCIDATOR (final decomposition) → SYNTHESIZER: bind the Aggregator Buffer JSON → `attributes.input_signals[0]`.
+- ELUCIDATOR (final decomposition) → SYNTHESIZER: bind each worker output as a separate item in `attributes.input_signals` (preserving order). Apply the final SYNTHESIZER directive as `attributes.instructions`.
 
 ## Prompt Construction (guide)
 

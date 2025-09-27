@@ -268,8 +268,9 @@ By default, CCN binds values into `attributes.input_signals` per role type:
   - set `input_signals[0] = qd_string` (entire string with `ROLE:`)
   - leave `attributes.tasks` empty unless the role explicitly requires it
 - Worker Roles → Aggregator: append `node_output_signal` to Aggregator Buffer.
-- ELUCIDATOR (final decomposition) → SYNTHESIZER: bind Aggregator Buffer JSON →
-  `input_signals[0]`.
+- ELUCIDATOR (final decomposition) → SYNTHESIZER: bind each worker output as a
+  separate entry in `attributes.input_signals` (preserving order). Apply the
+  final SYNTHESIZER directive text as the role's `attributes.instructions`.
 
 Advanced bindings can be expressed via `call_args` (e.g., internal targets),
 but the default rule above ensures deterministic progression without requiring
