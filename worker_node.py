@@ -32,11 +32,15 @@ class WorkerNode:
         prompt_parts.append(f"Role: {role.node_id}")
         prompt_parts.append("")
         
-        # Task
-        if role.tasks:
+        # Task (skip for SYNTHESIZER to keep directive-only style)
+        if role.tasks and role.node_id != 'SYNTHESIZER':
             prompt_parts.append(f"Task: {role.tasks[0]}")
             prompt_parts.append("")
         
+        # For SYNTHESIZER, print directive (instructions) before inputs
+        if role.node_id == 'SYNTHESIZER' and role.instructions:
+            prompt_parts.append(role.instructions)
+            prompt_parts.append("")
         # Input signals
         if role.input_signals:
             prompt_parts.append("Inputs:")
@@ -44,8 +48,8 @@ class WorkerNode:
                 prompt_parts.append(f"  Input[{i}]: {signal}")
             prompt_parts.append("")
         
-        # Instructions
-        if role.instructions:
+        # Instructions (skip labeled section for SYNTHESIZER because directive is above)
+        if role.instructions and role.node_id != 'SYNTHESIZER':
             prompt_parts.append(f"Instructions: {role.instructions}")
             prompt_parts.append("")
         
