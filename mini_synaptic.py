@@ -168,9 +168,6 @@ MANDATORY TRANSFORMATIONS:
 
 Example transformation:
 "What are mental models?" → "How have mental models been conceptualized as cognitive frameworks within different theoretical approaches in cognitive science?"
-
-Input: {query}
-Output: JSON only: {"reformulated_question": "<text>"}
 """.strip()
         )
         # LLM config is centralized; rely on defaults/env. No per-role values needed here.
