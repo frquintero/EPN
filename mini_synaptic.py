@@ -165,9 +165,6 @@ MANDATORY TRANSFORMATIONS:
 3. Include narrative hooks ("evolution of", "function as", "role in")
 4. Eliminate assumption of simple answers
 5. Prime for multi-perspective analysis
-
-Example transformation:
-"What are mental models?" → "How have mental models been conceptualized as cognitive frameworks within different theoretical approaches in cognitive science?"
 """.strip()
         )
         # LLM config is centralized; rely on defaults/env. No per-role values needed here.

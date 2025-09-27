@@ -392,7 +392,7 @@ REFORMULATOR Role
   ["attributes.node_id", "REFORMULATOR"],
   ["attributes.input_signals[0]", "<USER_QUERY>"],
   ["attributes.tasks[0]", "ROLE: REFORMULATOR"],
-  ["attributes.instructions", "MANDATORY TRANSFORMATIONS:\n1. Replace 'what are' with 'how do/function as' or 'what constitutes'\n2. Add epistemic context ('within cognitive science's study of...')\n3. Include narrative hooks ('evolution of', 'function as', 'role in')\n4. Eliminate assumption of simple answers\n5. Prime for multi-perspective analysis\n\nExample transformation:\n'What are mental models?' → 'How have mental models been conceptualized as cognitive frameworks within different theoretical approaches in cognitive science?'"]
+  ["attributes.instructions", "MANDATORY TRANSFORMATIONS:\n1. Replace 'what are' with 'how do/function as' or 'what constitutes'\n2. Add epistemic context ('within cognitive science's study of...')\n3. Include narrative hooks ('evolution of', 'function as', 'role in')\n4. Eliminate assumption of simple answers\n5. Prime for multi-perspective analysis"]
 ]
 ```
 
