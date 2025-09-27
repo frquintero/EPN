@@ -65,16 +65,23 @@ class WorkerNode:
         """Make LLM call for the role."""
         prompt = self.build_prompt(role)
         
-        # Log prompt window
-        prompt_event = CCNEvent(
+        # Log prompt windows (trimmed and full) for auditing
+        self._emit_event(CCNEvent(
             event_type='prompt_window',
             node_id=role.node_id,
             data={
                 'prompt': prompt[:2000] + '...' if len(prompt) > 2000 else prompt,
                 'llm_config': role.llm_config
             }
-        )
-        self._emit_event(prompt_event)
+        ))
+        self._emit_event(CCNEvent(
+            event_type='prompt_window_full',
+            node_id=role.node_id,
+            data={
+                'prompt': prompt,
+                'llm_config': role.llm_config
+            }
+        ))
 
         try:
             params = merge_llm_config(role.llm_config)

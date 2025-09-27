@@ -24,6 +24,7 @@ class RoleLog:
     """Capture prompt/response data for a single role."""
 
     prompt: Optional[str] = None
+    prompt_full: Optional[str] = None
     raw_response: Optional[str] = None
     parsed_response: Optional[str] = None
 
@@ -53,7 +54,11 @@ def main() -> None:
             role_logs[node_id] = RoleLog()
         entry = role_logs[node_id]
 
-        if event.event_type == "prompt_window":
+        if event.event_type == "prompt_window_full":
+            entry.prompt_full = event.data.get("prompt")
+            if node_id not in ordered_roles:
+                ordered_roles.append(node_id)
+        elif event.event_type == "prompt_window":
             entry.prompt = event.data.get("prompt")
             if node_id not in ordered_roles:
                 ordered_roles.append(node_id)
@@ -122,6 +127,13 @@ def main() -> None:
                     handle.write(json.dumps(llm_cfg, indent=2, ensure_ascii=False) + "\n\n")
                 except Exception:
                     handle.write(f"  llm_config: {llm_cfg}\n\n")
+            # Prompt (exact) as sent
+            if entry.prompt_full:
+                handle.write("Prompt (exact):\n")
+                handle.write(entry.prompt_full + "\n\n")
+            elif entry.prompt:
+                handle.write("Prompt (trimmed):\n")
+                handle.write(entry.prompt + "\n\n")
             # Raw LLM output only
             handle.write("Raw Response:\n")
             handle.write((entry.raw_response or "<missing>") + "\n\n")
