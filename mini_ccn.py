@@ -139,9 +139,12 @@ class MiniCCN:
             if not isinstance(aggregator_payload, list):
                 raise CCNError("Aggregator payload must be a list of worker outputs")
 
+            # Bind full aggregator as the content input
             target_role.input_signals = [json.dumps(aggregator_payload, indent=2)]
+            # Carry the ELUCIDATOR final decomposition string as the SYNTHESIZER directive
+            # so it appears in the prompt per conceptualization.md
             target_role.tasks = []
-            target_role.instructions = ''
+            target_role.instructions = spec['raw_text']
             target_role.llm_config.setdefault('response_format', {'type': 'json_object'})
             if not target_role.call_plan:
                 target_role.call_plan = ['prompt_call', 'emit']
