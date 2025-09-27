@@ -44,6 +44,7 @@ def main() -> None:
     role_logs: Dict[str, RoleLog] = {}
     ordered_roles = []
 
+    role_start_map: Dict[str, dict] = {}
     for event in ccn.memory.run_log:
         node_id = event.node_id
         if not node_id:
@@ -56,6 +57,10 @@ def main() -> None:
             entry.prompt = event.data.get("prompt")
             if node_id not in ordered_roles:
                 ordered_roles.append(node_id)
+        elif event.event_type == "role_start":
+            # Capture the full role object snapshot used to build the prompt
+            role_snapshot = event.data.get("role") or {}
+            role_start_map[node_id] = role_snapshot
         elif event.event_type == "raw_response":
             entry.raw_response = event.data.get("body")
         elif event.event_type == "parsed_response":
@@ -95,6 +100,28 @@ def main() -> None:
                     handle.write("\n")
             else:
                 handle.write("<none>\n\n")
+            # Show role build data captured at role_start (tasks, instructions, llm_config)
+            snap = role_start_map.get(role_id) or {}
+            if snap:
+                handle.write("Build Data (from role_start):\n")
+                entry_id = snap.get("entry_id")
+                if entry_id:
+                    handle.write(f"  entry_id: {entry_id}\n")
+                tasks = snap.get("tasks") or []
+                instructions = snap.get("instructions") or ""
+                llm_cfg = snap.get("llm_config") or {}
+                try:
+                    handle.write(f"  tasks: {json.dumps(tasks, ensure_ascii=False)}\n")
+                except Exception:
+                    handle.write(f"  tasks: {tasks}\n")
+                if instructions:
+                    handle.write("  instructions:\n")
+                    handle.write("    " + instructions.replace("\n", "\n    ") + "\n")
+                try:
+                    handle.write("  llm_config:\n")
+                    handle.write(json.dumps(llm_cfg, indent=2, ensure_ascii=False) + "\n\n")
+                except Exception:
+                    handle.write(f"  llm_config: {llm_cfg}\n\n")
             # Raw LLM output only
             handle.write("Raw Response:\n")
             handle.write((entry.raw_response or "<missing>") + "\n\n")
