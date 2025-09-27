@@ -90,43 +90,7 @@ def main() -> None:
             entry = role_logs[role_id]
             handle.write("-" * 80 + "\n")
             handle.write(f"Role: {role_id}\n")
-            # Show exact inputs used by this role (untrimmed, from archive)
-            rec_for_role = None
-            for rec in ccn.memory.archive:
-                if rec.node_id == role_id:
-                    rec_for_role = rec
-            handle.write("Inputs (used, untrimmed):\n")
-            if rec_for_role and rec_for_role.input_signals:
-                try:
-                    handle.write(json.dumps(rec_for_role.input_signals, indent=2, ensure_ascii=False) + "\n\n")
-                except Exception:
-                    for i, val in enumerate(rec_for_role.input_signals, 1):
-                        handle.write(f"  Input[{i}]: {val}\n")
-                    handle.write("\n")
-            else:
-                handle.write("<none>\n\n")
-            # Show role build data captured at role_start (tasks, instructions, llm_config)
-            snap = role_start_map.get(role_id) or {}
-            if snap:
-                handle.write("Build Data (from role_start):\n")
-                entry_id = snap.get("entry_id")
-                if entry_id:
-                    handle.write(f"  entry_id: {entry_id}\n")
-                tasks = snap.get("tasks") or []
-                instructions = snap.get("instructions") or ""
-                llm_cfg = snap.get("llm_config") or {}
-                try:
-                    handle.write(f"  tasks: {json.dumps(tasks, ensure_ascii=False)}\n")
-                except Exception:
-                    handle.write(f"  tasks: {tasks}\n")
-                if instructions:
-                    handle.write("  instructions:\n")
-                    handle.write("    " + instructions.replace("\n", "\n    ") + "\n")
-                try:
-                    handle.write("  llm_config:\n")
-                    handle.write(json.dumps(llm_cfg, indent=2, ensure_ascii=False) + "\n\n")
-                except Exception:
-                    handle.write(f"  llm_config: {llm_cfg}\n\n")
+            # Only show the exact prompt string used and the raw response
             # Prompt (exact) as sent
             if entry.prompt_full:
                 handle.write("Prompt (exact):\n")
