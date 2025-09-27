@@ -84,12 +84,21 @@ def main() -> None:
             handle.write((entry.prompt or "<missing>") + "\n\n")
             handle.write("Raw Response:\n")
             handle.write((entry.raw_response or "<missing>") + "\n\n")
-
-        # Append aggregator buffer exactly as stored in MEMORY
-        handle.write("=" * 80 + "\n\n")
-        agg = list(ccn.memory.aggregator_buffer)
-        handle.write(f"Aggregator Buffer (count={len(agg)}):\n")
-        handle.write(json.dumps(agg, indent=2, ensure_ascii=False) + "\n\n")
+            # Show exact inputs used by this role (untrimmed, from archive)
+            rec_for_role = None
+            for rec in ccn.memory.archive:
+                if rec.node_id == role_id:
+                    rec_for_role = rec
+            handle.write("Inputs (used, untrimmed):\n")
+            if rec_for_role and rec_for_role.input_signals:
+                try:
+                    handle.write(json.dumps(rec_for_role.input_signals, indent=2, ensure_ascii=False) + "\n\n")
+                except Exception:
+                    for i, val in enumerate(rec_for_role.input_signals, 1):
+                        handle.write(f"  Input[{i}]: {val}\n")
+                    handle.write("\n")
+            else:
+                handle.write("<none>\n\n")
 
         # Append roles executed as recorded in archive (source of truth)
         roles_executed = [rec.node_id for rec in ccn.memory.archive]
