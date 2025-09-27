@@ -18,7 +18,7 @@
   - archive: list[PerRoleRecord]
   - aggregator_buffer: list[AnyJson]
   - run_log: list[CCNEvent]
-- Built-in Roles: REFORMULATOR, ELUCIDATOR. Dynamic worker roles created from ELUCIDATOR tasks. Final role: SYNTHESIZER.
+- Built-in Roles: REFORMULATOR, ELUCIDATOR. Dynamic worker roles created from ELUCIDATOR query_decomposition. Final role: SYNTHESIZER.
 - JSON-only: all roles return strict JSON envelopes (see Data Contracts).
 
 ## Data Contracts (condensed)
@@ -27,9 +27,24 @@
 - SYNAPTIC format (data-plane): KV-pair list only. Strict semantics: no auto-create, arrays in-bounds or append at end, types must match template, only `attributes.*` and `llm_config.*` keys allowed.
 - Role Output Envelopes:
   - REFORMULATOR → `{ "reformulated_question": "<text>" }`.
-  - ELUCIDATOR → `{ "tasks": [["task N","ROLE: <ROLE_NAME>. <desc> ... RESPONSE_JSON: {...}"], ...] }` (maximum 4 items) with the final item for `ROLE: SYNTHESIZER`.
-  - Worker roles (default) → `{ "node_output_signal": "<text>" }` (unless ELUCIDATOR provides a different RESPONSE_JSON contract for that task).
+  - ELUCIDATOR → `{ "query_decomposition": [["label","ROLE: <ROLE_NAME>. <desc>"], ...] }` (maximum 4 items) with the final item for `ROLE: SYNTHESIZER`.
+  - Worker roles (default) → `{ "node_output_signal": "<text>" }`.
   - SYNTHESIZER → `{ "node_output_signal": "<text>" }`.
+
+### Built-in Role: REFORMULATOR (mandatory transformations)
+
+- Replace "what are" with "how do/function as" or "what constitutes".
+- Add explicit epistemic context (e.g., "within cognitive science's study of...").
+- Include narrative hooks (e.g., "evolution of", "function as", "role in").
+- Eliminate presupposition of simple answers.
+- Prime for multi-perspective analysis.
+
+Example transformation: "What are mental models?" →
+"How have mental models been conceptualized as cognitive frameworks within different theoretical approaches in cognitive science?"
+
+Input: `{query}`
+
+Output: JSON only `{ "reformulated_question": "<text>" }`.
 
 ### Validation Timeline (MVP)
 
@@ -50,7 +65,7 @@
 ## Execution Plan (canonical)
 
 - REFORMULATOR → `[prompt_call, emit]` (record output in MEMORY).
-- ELUCIDATOR → `[prompt_call, emit]` (record `tasks` list in MEMORY; CCN enqueues ≤4 worker roles + init Aggregator Buffer).
+- ELUCIDATOR → `[prompt_call, emit]` (record `query_decomposition` in MEMORY; CCN enqueues ≤4 worker roles + init Aggregator Buffer).
 - Worker Role (task-specific) → `[prompt_call, emit]` (append output to Aggregator Buffer).
 - SYNTHESIZER → `[prompt_call, emit]` (record final output).
 
@@ -58,13 +73,14 @@
 
 - User input → REFORMULATOR: bind query → `attributes.input_signals[0]`.
 - REFORMULATOR → ELUCIDATOR: parse JSON, extract `reformulated_question` → `attributes.input_signals[0]`.
-- ELUCIDATOR → Worker Roles: parse object, read `tasks` (max 4 items); for each item, set `attributes.node_id = <ROLE_NAME>`, copy task text → `attributes.tasks[0]`, and bind reformulated question → `attributes.input_signals[0]`; if a RESPONSE_JSON appears, attach to the worker’s prompt/contract.
+- ELUCIDATOR → Worker Roles: parse object, read `query_decomposition` (max 4 items). For each item `[label, qd_string]`, extract `<ROLE_NAME>` from `qd_string`, set `attributes.node_id = <ROLE_NAME>`, and bind the entire `qd_string` → `attributes.input_signals[0]`. Do not populate `attributes.tasks` unless required by the role.
 - Workers → SYNTHESIZER: append `node_output_signal` to Aggregator Buffer.
+ - ELUCIDATOR (final decomposition) → SYNTHESIZER: bind the Aggregator Buffer JSON → `attributes.input_signals[0]`.
 
 ## Prompt Construction (guide)
 
-- Sources: attributes.input_signals, attributes.tasks[0], attributes.instructions (string), llm_config.
-- Layout: header (Role), Task, Inputs (Input[i]: ...), Instructions. No fallbacks. When JSON is required (always), instructions must include exact JSON contract.
+- Sources: attributes.input_signals (index 0 is the authoritative decomposition string for worker roles), attributes.instructions (role-specific), llm_config.
+- Layout: header (Role), Inputs (Input[i]: ...), optional Instructions. No fallbacks. Worker roles and SYNTHESIZER must return `{ "node_output_signal": "<text>" }`; REFORMULATOR and ELUCIDATOR must return their respective envelopes as above.
 - Log before LLM call: record a `prompt_window` (prompt text + llm_config).
 
 ## Call Plan Overrides (MVP)
@@ -94,7 +110,7 @@
 
 ## Limits & Timeouts (MVP)
 
-- ELUCIDATOR tasks: max 4 items (including final SYNTHESIZER).
+- ELUCIDATOR query_decomposition: max 4 items (including final SYNTHESIZER).
 - Worklist/aggregator caps: configurable (defaults: worklist≤100, buffer≤100).
 - LLM call timeout: configurable per call; abort on timeout and archive error.
 
@@ -124,8 +140,8 @@
 ## Milestones
 
 1) Scaffolding: MEMORY, KV materializer, Node Template, WorkerNode stubs, Groq client wrapper.
-2) Built-ins: implement REFORMULATOR + ELUCIDATOR contracts (ELUCIDATOR ≤4 tasks); run end-to-end through worker enqueue.
-3) Worker roles + Aggregator: parse tasks, execute workers, append to buffer.
+2) Built-ins: implement REFORMULATOR + ELUCIDATOR contracts (ELUCIDATOR ≤4 query_decomposition items); run end-to-end through worker enqueue.
+3) Worker roles + Aggregator: parse query_decomposition items, execute workers, append to buffer.
 4) SYNTHESIZER: consume buffer and produce final JSON.
 5) Windows + Archive: full logging, archive PerRoleRecord, end-of-run validation.
 6) Polish: error surfaces, helpful diagnostics, small refactors.

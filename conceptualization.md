@@ -43,10 +43,13 @@ while CCN orchestrates execution by dispatching built-in method calls
 - Role: A runtime assignment (a specific behavior) executed by the
   Multi-Worker. Each Role is fully described by a `SYNAPTIC` entry.
 - REFORMULATOR (Role, built-in): Reformulates the user query into a neutral,
-  epistemically sound inquiry.
+  epistemically sound inquiry using mandatory transformations (epistemic
+  context, narrative hooks, multi-perspective framing, and removal of
+  simple-answer presuppositions). See REFORMULATOR Role template below.
 - ELUCIDATOR (Role, built-in): Generates a list of self-contained task
-  definitions that
-  include the target Role per task (e.g., ANALYZER, EXPLORER) and task text.
+  definitions that include the target Role per task (e.g., ANALYZER,
+  EXPLORER) and a task string. Each task string becomes the direct input to
+  the future worker (see Binding Rules).
 - SYNTHESIZER (Role): Aggregates outputs from worker Roles into a coherent
   synthesis and emits the final result.
 - MEMORY: CCN-internal registry that holds a FIFO worklist of `SYNAPTIC`
@@ -86,24 +89,40 @@ General flow in a Multi-Worker cycle:
 The Multi-Worker communicates results back via `emit` (returning
 `attributes.node_output_signal`). CCN consumes that value and deterministically
 performs the required action: targeted update (e.g., aggregator append) or
-enqueuing derived Roles (e.g., from ELUCIDATOR’s tasks).
+enqueuing derived Roles (e.g., from ELUCIDATOR’s query_decomposition).
 
 CCN binds the user query to the REFORMULATOR Role’s `attributes.input_signals[0]`.
 Acting as REFORMULATOR, the Multi-Worker runs `prompt_call` to produce a
 reformulated question, then triggers `emit` to publish it. CCN records the
 reformulation and uses it as the input for the ELUCIDATOR Role.
 Acting as ELUCIDATOR, the Multi-Worker runs `prompt_call` to produce a list of
-self-contained task definitions that include the target Role per task
-and a task description. It then triggers `emit` to publish that list. CCN
+query_decomposition items (2–4), each declaring a target Role and a concise
+decomposition string. It then triggers `emit` to publish that list. CCN
 records it and proceeds.
 
-From ELUCIDATOR’s tasks, CCN constructs and enqueues one JSON `SYNAPTIC` entry
-per task (one worker Role per task), and initializes an Aggregator Buffer in
-MEMORY for the SYNTHESIZER Role. CCN validates these entries and assigns each to the
-Multi-Worker as a new Role, executing them in FIFO order.
+From ELUCIDATOR’s query_decomposition, CCN constructs and enqueues one JSON
+`SYNAPTIC` entry per decomposition item (one worker Role per item), and
+initializes an Aggregator Buffer in MEMORY for the SYNTHESIZER Role. CCN
+validates these entries and assigns each to the Multi-Worker as a new Role,
+executing them in FIFO order.
+
+### Emit and Bind Summary
+
+- REFORMULATOR
+  - Emit: `{ "reformulated_question": "<text>" }`
+  - Bind: ELUCIDATOR `input_signals[0] = reformulated_question`
+- ELUCIDATOR
+  - Emit: `{ "query_decomposition": [[label, qd_string], ...] }`
+  - Bind: for each item, worker `node_id` from qd_string; worker `input_signals[0] = qd_string`
+- Worker roles
+  - Emit: `{ "node_output_signal": "<text>" }`
+  - CCN: append to Aggregator Buffer (not bound to the “next worker”)
+- SYNTHESIZER
+  - Inputs: `input_signals[0] = JSON.stringify(aggregator_buffer)`
+  - Emit: `{ "node_output_signal": "<text>" }`
 
 For each worker Role, the Multi-Worker runs `prompt_call`, produces a
-task-level `node_output_signal`, and triggers `emit`. CCN appends the
+`node_output_signal`, and triggers `emit`. CCN appends the
 signal into the Aggregator Buffer so the SYNTHESIZER has all
 worker signals collected in one place. Finally, the Multi-Worker assumes the
 SYNTHESIZER Role using that dedicated aggregator-backed `SYNAPTIC` entry. It
@@ -237,19 +256,20 @@ include truncated previews for quick debugging.
 
 ### Binding Rules (Producer → Consumer)
 
-By default, CCN binds the previous Role’s `attributes.node_output_signal` to
-the next Role’s `attributes.input_signals[0]` before dispatch:
+By default, CCN binds values into `attributes.input_signals` per role type:
 
-- User Input → REFORMULATOR: bind the captured user query to
-  REFORMULATOR’s `input_signals[0]`.
-- REFORMULATOR → ELUCIDATOR: bind the reformulated question to
-  ELUCIDATOR’s `input_signals[0]`. If REFORMULATOR emits a JSON object,
-  CCN extracts the value of the `reformulated_question` field for binding.
-- ELUCIDATOR → Worker Roles: CCN parses ELUCIDATOR’s task list and enqueues
-  one Role per task; each worker Role receives the reformulated question in
-  `input_signals[0]` and task-specific instructions via `attributes.tasks`.
-- Worker Roles → SYNTHESIZER: CCN appends each worker `node_output_signal` to
-  the Aggregator Buffer in MEMORY for the SYNTHESIZER Role.
+- User Input → REFORMULATOR: bind the captured user query →
+  REFORMULATOR `input_signals[0]`.
+- REFORMULATOR → ELUCIDATOR: extract `reformulated_question` →
+  ELUCIDATOR `input_signals[0]`.
+- ELUCIDATOR → Worker Roles: parse `query_decomposition` (≤4). For each
+  `[label, qd_string]`, extract `<ROLE_NAME>`, then:
+  - set `attributes.node_id = <ROLE_NAME>`
+  - set `input_signals[0] = qd_string` (entire string with `ROLE:`)
+  - leave `attributes.tasks` empty unless the role explicitly requires it
+- Worker Roles → Aggregator: append `node_output_signal` to Aggregator Buffer.
+- ELUCIDATOR (final decomposition) → SYNTHESIZER: bind Aggregator Buffer JSON →
+  `input_signals[0]`.
 
 Advanced bindings can be expressed via `call_args` (e.g., internal targets),
 but the default rule above ensures deterministic progression without requiring
@@ -275,11 +295,12 @@ This section explains where prompt data comes from and how `build_prompt`
 renders the final text sent to the LLM.
 
 - Sources (materialized Role object)
-  - `attributes.input_signals`: primary content inputs (e.g., user query or the
-    reformulated question). Origin: bound by CCN from prior Role outputs stored
-    in MEMORY (archive/aggregator) according to the Binding Rules.
-  - `attributes.tasks`: role/task directive text (first item is the main task).
-    Origin: from the Role’s SYNAPTIC KV list (MEMORY worklist entry).
+- `attributes.input_signals`: primary content inputs. For worker roles,
+    `input_signals[0]` is the ELUCIDATOR decomposition string (authoritative
+    directive including `ROLE:`). Origin: bound by CCN per Binding Rules.
+  - `attributes.tasks`: role/task directive text. For worker roles this is
+    typically empty; built-in roles (REFORMULATOR/ELUCIDATOR) may carry a
+    descriptive task for readability. Origin: SYNAPTIC KV list.
   - `attributes.instructions`: newline-separated guidance string with any
     output-format constraints (e.g., JSON shape requirements). Origin: from the
     Role’s SYNAPTIC KV list (MEMORY worklist entry). If omitted, the worker
@@ -289,15 +310,16 @@ renders the final text sent to the LLM.
     per‑Role overrides supplied via the SYNAPTIC KV list.
 
 - Rendering rules (build_prompt)
-  - Deterministic layout (no fallbacks): a fixed header, followed by the task,
-    inputs, and instructions, each separated by one blank line.
+  - Deterministic layout (no fallbacks): a fixed header, followed by inputs
+    (Input[i]) and optional instructions, each separated by one blank line.
   - Minimal layout skeleton:
     - Header: `Role: {attributes.node_id}`
     - Inputs: each `attributes.input_signals[i]` printed as `Input[i]: ...`
-    - Task: `{attributes.tasks[0]}`
-    - Instructions: the full `attributes.instructions` string
-  - All roles MUST return strict JSON. Ensure the instructions explicitly
-    require strict JSON (examples are given for REFORMULATOR and ELUCIDATOR).
+    - Instructions: the full `attributes.instructions` string (if present)
+  - All roles MUST return strict JSON. Expected envelopes: REFORMULATOR →
+    `{ "reformulated_question": "<text>" }`; ELUCIDATOR →
+    `{ "query_decomposition": [[label, qd_string], ...] }`; Worker roles and
+    SYNTHESIZER → `{ "node_output_signal": "<text>" }`.
 
 - Note on defaults (design intent, not a fallback)
   - If any field is omitted in the Role’s SYNAPTIC KV list, CCN materializes
@@ -313,10 +335,10 @@ renders the final text sent to the LLM.
     - On success: set `attributes.node_output_signal = reformulated_question`.
     - On failure (missing key/extra keys/non-JSON): fail fast and log raw body.
   - ELUCIDATOR: MUST return a strict JSON object with exactly one field
-    `{ "tasks": [ ["task N", "ROLE: <ROLE_NAME>. <desc>"], ... ] }` where
-    the final item is for `ROLE: SYNTHESIZER`.
-    - On success: read `tasks` (array) and pass it to CCN to enqueue worker
-      roles.
+    `{ "query_decomposition": [ ["label", "ROLE: <ROLE_NAME>. <desc>"], ... ] }`
+    where the final item is for `ROLE: SYNTHESIZER`.
+    - On success: read `query_decomposition` (array) and pass it to CCN to
+      enqueue worker roles.
     - On failure: fail fast with a clear validation error and log raw body.
   - Worker roles (task-specific): MUST return a strict JSON object with a
     single field `{ "node_output_signal": "<text>" }` unless the worker’s
@@ -355,8 +377,9 @@ prompt’s instructions explicitly require strict JSON.
   - Parse JSON; on parse error, fail fast and log raw body in MEMORY.
   - Extract per-role fields:
     - REFORMULATOR/Worker roles/SYNTHESIZER → set `attributes.node_output_signal`.
-    - ELUCIDATOR → read the `tasks` array from the returned object and pass it
-      to CCN for enqueue (no `node_output_signal` for ELUCIDATOR).
+    - ELUCIDATOR → read the `query_decomposition` array from the returned
+      object and pass it to CCN for enqueue (no `node_output_signal` for
+      ELUCIDATOR).
 
 ## Synaptic Format
 
@@ -368,8 +391,8 @@ REFORMULATOR Role
 [
   ["attributes.node_id", "REFORMULATOR"],
   ["attributes.input_signals[0]", "<USER_QUERY>"],
-  ["attributes.tasks[0]", "ROLE: REFORMULATOR. You are an epistemological reformulator specializing in bias elimination, epistemic contextualization, and narrative priming. Your task is to transform biased questions into neutral, epistemologically-grounded inquiries that seed a cohesive narrative arc. First step to find the truth is to formulate the right questions. Reformulate the given query"],
-  ["attributes.instructions", "Neutralize biases and eliminate assumptions.\nKeep scope clear and answerable.\nOutput MUST be a JSON object with exactly one field: {\"reformulated_question\": \"<text>\"}.\nNo prose before or after the JSON.\nKeep the reformulated question under 40 words."]
+  ["attributes.tasks[0]", "ROLE: REFORMULATOR"],
+  ["attributes.instructions", "MANDATORY TRANSFORMATIONS:\n1. Replace 'what are' with 'how do/function as' or 'what constitutes'\n2. Add epistemic context ('within cognitive science's study of...')\n3. Include narrative hooks ('evolution of', 'function as', 'role in')\n4. Eliminate assumption of simple answers\n5. Prime for multi-perspective analysis\n\nExample transformation:\n'What are mental models?' → 'How have mental models been conceptualized as cognitive frameworks within different theoretical approaches in cognitive science?'\n\nInput: {query}\nOutput: JSON only: {\"reformulated_question\": \"<text>\"}"]
 ]
 ```
 
@@ -379,8 +402,8 @@ ELUCIDATOR Role
 [
   ["attributes.node_id", "ELUCIDATOR"],
   ["attributes.input_signals[0]", "<REFORMULATOR_OUTPUT>"],
-  ["attributes.tasks[0]", "ROLE: ELUCIDATOR. You are an epistemological explorer. Your goal is to generate a comprehensive set of analytical tasks that, when executed by specialized LLM nodes within a collaborative network, will extract maximum understanding from the inquiry. Discover both obvious and hidden dimensions that need investigation"],
-  ["attributes.instructions", "Ensure tasks are clear, actionable, and non-overlapping.\nReturn valid JSON only.\nOutput MUST be a JSON object with exactly one field 'tasks'.\n'tasks' MUST be a JSON array (no prose before/after).\nEach array item MUST be a two-element array: ['task N', 'ROLE: <ROLE_NAME>. <concise task description>']\n<ROLE_NAME> MUST be UPPERCASE with underscores only (e.g., ANALYZER, EXPLORER, CONTEXTUALIZER, RELATION_MAPPER, SYNTHESIZER).\nThe last item MUST be ['task X', 'ROLE: SYNTHESIZER. Synthesize the collected outputs into a coherent, well-grounded answer.']\nEach task MUST be self-contained and executable by a single role when paired with the reformulated query.\nEach task description MUST end with 'RESPONSE_JSON: {\\\"node_output_signal\\\": \\\"<text>\\\"}'.\nKeep each task under 50 words."]
+  ["attributes.tasks[0]", "ROLE: ELUCIDATOR. You are an epistemological query_decompositor specialist. Your function is to analyze complex inquiries and break them down into 2-4 specialized, self-contained investigative questions drawn from relevant knowledge domain. Each query_decomposition stands alone with complete semantic integrity, focused on specific aspects of the original inquiry. Together they enable comprehensive understanding extraction.  Example Transformation: Input (original query): 'How did the printing press revolutionize knowledge distribution?' Output query_decompositions:'What specific technological innovations in Gutenberg's printing press (1440-1450) enabled mass production of texts compared to manuscript copying?','How did the economic models of early printing shops in 15th century Europe affect the types of knowledge that became widely distributed?','In what ways did the standardization of text through printing influence the development of scientific methodology during the Renaissance?'"],
+  ["attributes.instructions", "Output MUST be a JSON object with exactly one field 'query_decomposition' (no prose before/after).\nEach array item MUST be a two-element array: ['query_decomposition N', 'ROLE: <ROLE_NAME>. <query_decomposition description>']\n<ROLE_NAME> MUST be UPPERCASE with underscores only (e.g., ANALYZER, EXPLORER, CONTEXTUALIZER, RELATION_MAPPER, SYNTHESIZER).\nThe last item MUST be ['query_decomposition X', 'ROLE: SYNTHESIZER. You are an integrative knowledge synthesizer. Your function is to analyze and integrate the collected query decompositions into a coherent, evidence-grounded synthesis that presents one or more well-supported proposed answers. Weave together insights from all specialized investigations.  Ensure all conclusions are supported by the decomposition findings. Integrate complementary and potentially conflicting insights. Develop one or more coherent proposed answers with clear reasoning. Create a logically structured narrative from disparate findings. Acknowledge uncertainties, contradictions, or multiple valid perspectives. Ensure no critical insights from the decompositions are overlooked. Keep your response under 400 words']\nKeep each query_decomposition under 70 words."]
   ["attributes.instructions", "Select at most 4 items in total (including the final SYNTHESIZER item)."]
 ]
 ```
@@ -447,28 +470,28 @@ Aggregation is CCN-managed. Worker Role outputs are appended to an Aggregator
 Buffer in MEMORY for the SYNTHESIZER Role. KV lists do not need to specify a
 target; CCN routes outputs per its default plan.
 
-### ELUCIDATOR Task Format (Canonical)
+### ELUCIDATOR Query Decomposition Format (Canonical)
 
-ELUCIDATOR must output a strict JSON object with exactly one field `tasks`.
-`tasks` is a JSON array (maximum 4 items) of two-element arrays, where the
-second element starts with a Role declaration followed by a concise task
-description that includes (at the end) the explicit JSON response contract for
-the downstream role:
+ELUCIDATOR must output a strict JSON object with exactly one field
+`query_decomposition`.
+`query_decomposition` is a JSON array (maximum 4 items) of two‑element arrays,
+where the second element starts with a Role declaration followed by a concise
+decomposition string for the downstream role:
 
 ```json
 {
-  "tasks": [
+  "query_decomposition": [
     [
-      "task 1",
-      "ROLE: ANALYZER. Analyze the factual foundations of ... RESPONSE_JSON: {\"node_output_signal\": \"<text>\"}"
+      "query_decomposition 1",
+      "ROLE: ANALYZER. Analyze the factual foundations of ..."
     ],
     [
-      "task 2",
-      "ROLE: EXPLORER. Explore key drivers behind ... RESPONSE_JSON: {\"node_output_signal\": \"<text>\"}"
+      "query_decomposition 2",
+      "ROLE: EXPLORER. Explore key drivers behind ..."
     ],
     [
-      "task 3",
-      "ROLE: SYNTHETIC_MAPPER. Map relations among ... RESPONSE_JSON: {\"node_output_signal\": \"<text>\"}"
+      "query_decomposition 3",
+      "ROLE: SYNTHETIC_MAPPER. Map relations among ..."
     ]
   ]
 }
@@ -480,15 +503,16 @@ Canonical rules:
 - `<ROLE_NAME>` uses uppercase letters and underscores only (e.g., ANALYZER,
   EXPLORER, SYNTHETIC_MAPPER).
 - Each item is self-contained: it carries all semantics needed for the worker
-  to understand and execute the task when paired with the reformulated query.
-- Each item’s description MUST end with a one-line response contract prefixed
-  by `RESPONSE_JSON:` followed by the exact JSON object the worker must return
-  (e.g., `{\"node_output_signal\": \"<text>\"}`). No prose after this object.
+  to understand and execute the decomposition. The full decomposition string is
+  passed as the worker’s primary input value.
 - The list MUST contain at most 4 items in total. The final item MUST be a
-  `ROLE: SYNTHESIZER` task that instructs the synthesis step.
+  `ROLE: SYNTHESIZER` decomposition that instructs the synthesis step.
 
 CCN parses this output and enqueues one worker Role per item, setting
-`attributes.node_id` to `<ROLE_NAME>`, copying the description into
-`attributes.tasks[0]`, and placing the reformulated query into
-`attributes.input_signals[0]`. CCN reads the array from the object's
-`tasks` field.
+`attributes.node_id` to `<ROLE_NAME>`, and placing the exact decomposition
+string into `attributes.input_signals[0]`. CCN reads the array from the
+object's `query_decomposition` field.
+
+<!-- Removed duplicate binding/prompt sections; see the authoritative versions
+     under the first "Binding Rules (Producer → Consumer)" and
+     "Prompt Construction" headings above. -->

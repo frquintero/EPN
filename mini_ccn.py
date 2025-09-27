@@ -41,63 +41,50 @@ class MiniCCN:
             if data:
                 print(f"  Data: {json.dumps(data, indent=2)[:500]}...")
 
-    def _parse_task_entry(self, index: int, task_entry: Any) -> Dict[str, Any]:
-        """Parse an individual ELUCIDATOR task entry."""
-        if not isinstance(task_entry, list) or len(task_entry) < 2:
-            raise CCNError(f"ELUCIDATOR task {index + 1} is malformed: {task_entry}")
+    def _parse_task_entry(self, index: int, item: Any) -> Dict[str, Any]:
+        """Parse an individual ELUCIDATOR query_decomposition item."""
+        if not isinstance(item, list) or len(item) < 2:
+            raise CCNError(f"ELUCIDATOR item {index + 1} is malformed: {item}")
 
-        raw_text = str(task_entry[1]).strip()
-        if 'ROLE:' not in raw_text or 'RESPONSE_JSON:' not in raw_text:
-            raise CCNError(f"ELUCIDATOR task {index + 1} missing ROLE or RESPONSE_JSON declaration")
+        raw_text = str(item[1]).strip()
+        if 'ROLE:' not in raw_text:
+            raise CCNError(f"ELUCIDATOR item {index + 1} missing ROLE declaration")
 
-        role_segment, response_segment = raw_text.split('RESPONSE_JSON:', 1)
-        response_segment = response_segment.strip()
-
-        role_indicator = role_segment.split('ROLE:', 1)[1].strip()
+        role_indicator = raw_text.split('ROLE:', 1)[1].strip()
         dot_index = role_indicator.find('.')
         if dot_index == -1:
-            raise CCNError(f"ELUCIDATOR task {index + 1} missing role description separator")
+            raise CCNError(f"ELUCIDATOR item {index + 1} missing role description separator")
 
         role_name = role_indicator[:dot_index].strip()
         description = role_indicator[dot_index + 1 :].strip()
 
         if not role_name:
-            raise CCNError(f"ELUCIDATOR task {index + 1} missing role name")
+            raise CCNError(f"ELUCIDATOR item {index + 1} missing role name")
         if not description:
-            raise CCNError(f"ELUCIDATOR task {index + 1} missing description")
+            raise CCNError(f"ELUCIDATOR item {index + 1} missing description")
 
         if not all(part.isupper() for part in role_name.split('_') if part):
-            raise CCNError(f"ELUCIDATOR task {index + 1} role name '{role_name}' must use uppercase letters and underscores")
-
-        try:
-            response_schema = json.loads(response_segment)
-        except json.JSONDecodeError as exc:
-            raise CCNError(f"ELUCIDATOR task {index + 1} RESPONSE_JSON invalid: {exc}")
-
-        if not isinstance(response_schema, dict):
-            raise CCNError(f"ELUCIDATOR task {index + 1} RESPONSE_JSON must be an object")
+            raise CCNError(f"ELUCIDATOR item {index + 1} role name '{role_name}' must use uppercase letters and underscores")
 
         return {
             'index': index + 1,
-            'label': task_entry[0],
+            'label': item[0],
             'role_name': role_name,
             'description': description,
-            'response_schema': response_schema,
-            'response_schema_text': response_segment,
             'raw_text': raw_text
         }
 
-    def _parse_elucidator_tasks(self, tasks: List[Any]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        """Parse and validate ELUCIDATOR task list."""
-        if not tasks:
-            raise CCNError("ELUCIDATOR did not emit any tasks")
-        if len(tasks) > 4:
-            raise CCNError("ELUCIDATOR emitted more than 4 tasks")
+    def _parse_elucidator_tasks(self, items: List[Any]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Parse and validate ELUCIDATOR query_decomposition list."""
+        if not items:
+            raise CCNError("ELUCIDATOR did not emit any query_decomposition items")
+        if len(items) > 4:
+            raise CCNError("ELUCIDATOR emitted more than 4 items")
 
-        parsed = [self._parse_task_entry(idx, task) for idx, task in enumerate(tasks)]
+        parsed = [self._parse_task_entry(idx, it) for idx, it in enumerate(items)]
 
         if parsed[-1]['role_name'] != 'SYNTHESIZER':
-            raise CCNError("Final ELUCIDATOR task must declare ROLE: SYNTHESIZER")
+            raise CCNError("Final ELUCIDATOR item must declare ROLE: SYNTHESIZER")
 
         worker_specs = parsed[:-1]
         synthesizer_spec = parsed[-1]
@@ -127,27 +114,15 @@ class MiniCCN:
             if not isinstance(source_output, dict):
                 raise CCNError("Worker binding requires structured task payload")
             spec = source_output.get('task_spec')
-            question = source_output.get('reformulated_question')
-            if spec is None or question is None:
+            if spec is None:
                 raise CCNError("Incomplete worker binding payload from ELUCIDATOR")
 
             role_name = spec['role_name']
             target_role.node_id = role_name
             target_role.entry_id = f"{role_name.lower()}_{spec['index']:03}"
-            target_role.input_signals = [str(question)]
-            target_role.tasks = [spec['description']]
-
-            schema_text = json.dumps(spec['response_schema'], indent=2)
-            target_role.instructions = (
-                f"{spec['description']}\n\n"
-                "Respond with valid JSON only. Use the schema shown below and do not introduce additional keys.\n"
-                f"Schema (human-readable):\n{schema_text}\n\n"
-                "Your output MUST be a JSON object with a single key `node_output_signal`.\n"
-                "Return exactly this JSON object (replace placeholder text with your answer):\n"
-                f"{spec['response_schema_text']}\n"
-                "Example: {\"node_output_signal\": \"<your answer>\"}\n"
-                f"RESPONSE_JSON: {spec['response_schema_text']}"
-            )
+            target_role.input_signals = [spec['raw_text']]
+            target_role.tasks = []
+            target_role.instructions = ''
             target_role.llm_config.setdefault('response_format', {'type': 'json_object'})
             if not target_role.call_plan:
                 target_role.call_plan = ['prompt_call', 'emit']
@@ -165,19 +140,8 @@ class MiniCCN:
                 raise CCNError("Aggregator payload must be a list of worker outputs")
 
             target_role.input_signals = [json.dumps(aggregator_payload, indent=2)]
-            target_role.tasks = [spec['description']]
-            schema_text = json.dumps(spec['response_schema'], indent=2)
-            target_role.instructions = (
-                f"{spec['description']}\n\n"
-                "You are provided with worker outputs in Input[1] as JSON."
-                " Produce a synthesis and respond with JSON matching this schema exactly (no extra fields).\n"
-                f"Schema (human-readable):\n{schema_text}\n\n"
-                "Your output MUST be a JSON object with a single key `node_output_signal`.\n"
-                "Return exactly this JSON object (replace placeholder text with your answer):\n"
-                f"{spec['response_schema_text']}\n"
-                "Example: {\"node_output_signal\": \"<your answer>\"}\n"
-                f"RESPONSE_JSON: {spec['response_schema_text']}"
-            )
+            target_role.tasks = []
+            target_role.instructions = ''
             target_role.llm_config.setdefault('response_format', {'type': 'json_object'})
             if not target_role.call_plan:
                 target_role.call_plan = ['prompt_call', 'emit']
@@ -316,13 +280,10 @@ class MiniCCN:
 
         if not self.pending_worker_specs:
             raise CCNError("No worker specification available for enqueued role")
-        if self.reformulated_question is None:
-            raise CCNError("Missing reformulated question for worker binding")
 
         spec = self.pending_worker_specs.popleft()
         role = self.bind_inputs('ELUCIDATOR', role, {
-            'task_spec': spec,
-            'reformulated_question': self.reformulated_question
+            'task_spec': spec
         })
 
         # Set as active

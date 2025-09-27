@@ -29,7 +29,8 @@ class RoleLog:
 
 
 def main() -> None:
-    query = "Why is there something than nothing"
+    # Allow custom query via CLI arg, else use default
+    query = sys.argv[1] if len(sys.argv) > 1 else "Why is there something than nothing"
 
     client = LLMClient()
     worker_node = WorkerNode(client)

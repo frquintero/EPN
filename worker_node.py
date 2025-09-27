@@ -55,10 +55,9 @@ class WorkerNode:
             if role.node_id == 'REFORMULATOR':
                 prompt_parts.append('Required format: {"reformulated_question": "<text>"}')
             elif role.node_id == 'ELUCIDATOR':
-                prompt_parts.append('Required format: {"tasks": [["task N", "ROLE: <ROLE_NAME>. <desc> ... RESPONSE_JSON: {...}"], ...]}')
+                prompt_parts.append('Required format: {"query_decomposition": [["label", "ROLE: <ROLE_NAME>. <desc>"], ...]}')
             else:
-                if 'node_output_signal' in role.instructions:
-                    prompt_parts.append('Required format: {"node_output_signal": "<text>"}')
+                prompt_parts.append('Required format: {"node_output_signal": "<text>"}')
 
         return "\n".join(prompt_parts)
     
@@ -117,13 +116,14 @@ class WorkerNode:
             return response['reformulated_question']
         
         elif role.node_id == 'ELUCIDATOR':
-            if 'tasks' not in response:
-                raise ValueError(f"ELUCIDATOR response missing 'tasks': {response}")
-            if not isinstance(response['tasks'], list):
-                raise ValueError(f"ELUCIDATOR tasks must be a list: {response['tasks']}")
-            if len(response['tasks']) > 4:
-                raise ValueError(f"ELUCIDATOR tasks exceed maximum 4 items: {len(response['tasks'])}")
-            return response['tasks']
+            if 'query_decomposition' not in response:
+                raise ValueError(f"ELUCIDATOR response missing 'query_decomposition': {response}")
+            qd = response['query_decomposition']
+            if not isinstance(qd, list):
+                raise ValueError(f"ELUCIDATOR query_decomposition must be a list: {qd}")
+            if len(qd) > 4:
+                raise ValueError(f"ELUCIDATOR query_decomposition exceeds maximum 4 items: {len(qd)}")
+            return qd
         
         else:
             # Worker roles and SYNTHESIZER

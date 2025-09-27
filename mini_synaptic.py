@@ -155,18 +155,23 @@ class NodeTemplates:
         kv_list.add('attributes.node_id', 'REFORMULATOR')
         kv_list.add('attributes.entry_id', 'reformulator_001')
         kv_list.add('attributes.input_signals', [input_query])
-        kv_list.add('attributes.tasks', [
-            'ROLE: REFORMULATOR. You are an epistemological reformulator specializing in bias elimination, epistemic contextualization, and narrative priming. '
-            'Your task is to transform biased questions into neutral, epistemologically-grounded inquiries that seed a cohesive narrative arc. '
-            'First step to find the truth is to formulate the right questions. Reformulate the given query'
-        ])
+        kv_list.add('attributes.tasks', ['ROLE: REFORMULATOR'])
         kv_list.add(
             'attributes.instructions',
-            'Neutralize biases and eliminate assumptions.\n'
-            'Keep scope clear and answerable.\n'
-            'Output MUST be a JSON object with exactly one field: {"reformulated_question": "<text>"}.\n'
-            'No prose before or after the JSON.\n'
-            'Keep the reformulated question under 40 words.'
+            """
+MANDATORY TRANSFORMATIONS:
+1. Replace "what are" with "how do/function as" or "what constitutes"
+2. Add epistemic context ("within cognitive science's study of...")
+3. Include narrative hooks ("evolution of", "function as", "role in")
+4. Eliminate assumption of simple answers
+5. Prime for multi-perspective analysis
+
+Example transformation:
+"What are mental models?" → "How have mental models been conceptualized as cognitive frameworks within different theoretical approaches in cognitive science?"
+
+Input: {query}
+Output: JSON only: {"reformulated_question": "<text>"}
+""".strip()
         )
         # LLM config is centralized; rely on defaults/env. No per-role values needed here.
         return kv_list
@@ -179,20 +184,18 @@ class NodeTemplates:
         kv_list.add('attributes.entry_id', 'elucidator_001')
         kv_list.add('attributes.input_signals', [reformulated_question])
         kv_list.add('attributes.tasks', [
-            'ROLE: ELUCIDATOR. You are an epistemological explorer. Your goal is to generate a comprehensive set of analytical tasks that, when executed by specialized LLM nodes within a collaborative network, will extract maximum understanding from the inquiry. Discover both obvious and hidden dimensions that need investigation'
+            'ROLE: ELUCIDATOR. You are an epistemological query_decompositor specialist. '
+            'Your function is to analyze complex inquiries and break them down into 2-4 specialized, self-contained investigative questions drawn from relevant knowledge domains. '
+            'Each query_decomposition stands alone with complete semantic integrity, focused on specific aspects of the original inquiry. '
+            'Together they enable comprehensive understanding extraction.'
         ])
         kv_list.add(
             'attributes.instructions',
-            'Ensure tasks are clear, actionable, and non-overlapping.\n'
-            'Return valid JSON only.\n'
-            "Output MUST be a JSON object with exactly one field 'tasks'.\n"
-            "'tasks' MUST be a JSON array (no prose before/after).\n"
-            "Each array item MUST be a two-element array: ['task N', 'ROLE: <ROLE_NAME>. <concise task description>']\n"
+            'Output MUST be a JSON object with exactly one field \'query_decomposition\' (no prose before/after).\n'
+            "Each array item MUST be a two-element array: ['query_decomposition N', 'ROLE: <ROLE_NAME>. <query_decomposition description>']\n"
             '<ROLE_NAME> MUST be UPPERCASE with underscores only (e.g., ANALYZER, EXPLORER, CONTEXTUALIZER, RELATION_MAPPER, SYNTHESIZER).\n'
-            "The last item MUST be ['task X', 'ROLE: SYNTHESIZER. Synthesize the collected outputs into a coherent, well-grounded answer.']\n"
-            'Each task MUST be self-contained and executable by a single role when paired with the reformulated query.\n'
-            'Each task description MUST end with \'RESPONSE_JSON: {\\"node_output_signal\\": \\\"<text>\\"}\'.\n'
-            'Keep each task under 50 words.\n'
+            "The last item MUST be ['query_decomposition X', 'ROLE: SYNTHESIZER. You are an integrative knowledge synthesizer. Your function is to analyze and integrate the collected query decompositions into a coherent, evidence-grounded synthesis that presents one or more well-supported proposed answers.']\n"
+            'Keep each query_decomposition under 70 words.\n'
             'Select at most 4 items in total (including the final SYNTHESIZER item).'
         )
         # LLM config is centralized; rely on defaults/env. No per-role values needed here.
