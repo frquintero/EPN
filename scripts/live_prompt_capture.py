@@ -84,8 +84,6 @@ def main() -> None:
             handle.write((entry.prompt or "<missing>") + "\n\n")
             handle.write("Raw Response:\n")
             handle.write((entry.raw_response or "<missing>") + "\n\n")
-            handle.write("Parsed Response:\n")
-            handle.write((entry.parsed_response or "<missing>") + "\n\n")
 
         # Append aggregator buffer exactly as stored in MEMORY
         handle.write("=" * 80 + "\n\n")
@@ -96,7 +94,20 @@ def main() -> None:
         # Append roles executed as recorded in archive (source of truth)
         roles_executed = [rec.node_id for rec in ccn.memory.archive]
         handle.write(f"Roles Executed (from archive, count={len(roles_executed)}):\n")
-        handle.write(json.dumps(roles_executed, indent=2, ensure_ascii=False) + "\n")
+        handle.write(json.dumps(roles_executed, indent=2, ensure_ascii=False) + "\n\n")
+
+        # Include full, untrimmed inputs used by each role (source of truth)
+        handle.write("Inputs Used By Roles (from archive, untrimmed):\n")
+        for rec in ccn.memory.archive:
+            handle.write("-" * 80 + "\n")
+            handle.write(f"Role: {rec.node_id} (entry_id: {rec.entry_id})\n")
+            handle.write(f"Input Signals (count={len(rec.input_signals)}):\n")
+            try:
+                handle.write(json.dumps(rec.input_signals, indent=2, ensure_ascii=False) + "\n")
+            except Exception:
+                # Fallback to line-by-line if dumping fails
+                for i, val in enumerate(rec.input_signals, 1):
+                    handle.write(f"  Input[{i}]: {val}\n")
 
     print(f"Capture written to {output_path}")
 
