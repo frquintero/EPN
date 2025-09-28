@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from mini_memory import MEMORY, MaterializedRole, PerRoleRecord, CCNEvent, SynapticKVList
 from mini_synaptic import SynapticParser, NodeTemplates, ValidationError
 from worker_node import WorkerNode
+from template_loader import repo as template_repo
 from llm_client import LLMError
 
 
@@ -102,6 +103,13 @@ class MiniCCN:
 
         worker_specs = parsed[:-1]
         synthesizer_spec = parsed[-1]
+
+        # Fallback when templates are absent: limit total items to 4
+        if not template_repo().has_templates():
+            max_total = 4
+            if len(parsed) > max_total:
+                keep_workers = max_total - 1
+                worker_specs = worker_specs[:keep_workers]
 
         return worker_specs, synthesizer_spec
 

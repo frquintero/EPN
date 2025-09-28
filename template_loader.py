@@ -26,6 +26,7 @@ class PromptsRepository:
         self.root = os.path.dirname(os.path.abspath(__file__))
         self.path = path or os.path.join(self.root, "templates", "prompts.md")
         self._loaded = False
+        self._exists = False
         self._templates: Dict[str, RoleTemplate] = {}
         self._llm_overrides: Dict[str, object] = {}
         self._sha256: Optional[str] = None
@@ -40,10 +41,12 @@ class PromptsRepository:
             return
         if not os.path.exists(self.path):
             # Nothing to load; remain empty, allow fallbacks
+            self._exists = False
             self._loaded = True
             return
         with open(self.path, "r", encoding="utf-8") as f:
             content = f.read()
+        self._exists = True
         self._sha256 = self._compute_sha256(content)
 
         # Split into sections by role header '## <ID>' (uppercase + underscores)
@@ -177,6 +180,10 @@ class PromptsRepository:
         if self._initial_query_error:
             raise ValueError(self._initial_query_error)
         return self._initial_query
+
+    def has_templates(self) -> bool:
+        self.load()
+        return bool(self._exists)
 
 
 # Singleton accessor

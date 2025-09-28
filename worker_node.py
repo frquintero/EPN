@@ -144,7 +144,17 @@ class WorkerNode:
         if role.node_id == 'REFORMULATOR':
             if 'reformulated_question' not in response:
                 raise ValueError(f"REFORMULATOR response missing 'reformulated_question': {response}")
-            return response['reformulated_question']
+            text = response['reformulated_question']
+            # Apply default word cap only if templates are absent
+            try:
+                from template_loader import repo as _repo
+                if not _repo().has_templates():
+                    words = str(text).split()
+                    if len(words) > 70:
+                        text = ' '.join(words[:70])
+            except Exception:
+                pass
+            return text
         
         elif role.node_id == 'ELUCIDATOR':
             if 'query_decomposition' not in response:
@@ -158,7 +168,17 @@ class WorkerNode:
             # Worker roles and SYNTHESIZER
             if 'node_output_signal' not in response:
                 raise ValueError(f"Role {role.node_id} response missing 'node_output_signal': {response}")
-            return response['node_output_signal']
+            text = response['node_output_signal']
+            # Apply default word cap only if templates are absent
+            try:
+                from template_loader import repo as _repo
+                if not _repo().has_templates():
+                    words = str(text).split()
+                    if len(words) > 70:
+                        text = ' '.join(words[:70])
+            except Exception:
+                pass
+            return text
     
     def execute_role(self, role: MaterializedRole) -> Any:
         """Execute complete role: build prompt, call LLM, emit response."""
