@@ -158,7 +158,7 @@ SYNTHESIZER → node_output_signal (JSON)
 
 ### LLM Parameters
 
-All LLM parameters are defined in `templates/prompts.md` under `## LLM_CONFIG`:
+Preferred source: `templates/prompts.md` under `## LLM_CONFIG`:
 
 - `model`
 - `temperature`
@@ -166,8 +166,18 @@ All LLM parameters are defined in `templates/prompts.md` under `## LLM_CONFIG`:
 - `reasoning_effort`
 - `response_format` (e.g., `json_object`)
 
-There are no environment or code fallbacks. Missing values cause a fail‑fast
-error at runtime.
+Fallback behavior (when templates are missing):
+- The app proceeds with hardcoded defaults from `llm_config.py`:
+  - model: `openai/gpt-oss-120b`
+  - temperature: `0.8`
+  - max_tokens: `8192`
+  - reasoning_effort: `medium`
+  - response_format: `{ "type": "json_object" }`
+
+Notes:
+- If a template is present but `LLM_CONFIG` is incomplete, the run fails fast
+  (no partial fallbacks within a template). The hardcoded defaults are used
+  only when the template file is entirely absent or provides no config.
 
 ### Environment Variables
 
