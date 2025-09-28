@@ -1,9 +1,9 @@
 # CCN Minimal EPN Cycle
 
 Template‑first, deterministic EPN (Epistemic Processing Network) cycle with a
-single Multi‑Worker and strict, audit‑friendly data flow. Prompts and LLM
-parameters are authored once in `templates/prompts.md` and treated as the
-single source of truth. CCN binds inputs and orchestrates execution; workers
+single Multi‑Worker and strict, audit‑friendly data flow. When `templates/prompts.md`
+is present, it becomes the authoritative configuration source. When absent, the system
+falls back to hardcoded defaults. CCN binds inputs and orchestrates execution; workers
 return strict JSON only.
 
 ## Overview
@@ -60,8 +60,14 @@ pip install -e .
 
 ## Usage
 
-The template may provide a query override (`## RUN → query: [ ... ]`). If it is
-non‑empty, it overrides the CLI argument.
+When `templates/prompts.md` is present, it controls system behavior:
+
+- **Query Override**: The `## RUN` section can override the CLI argument via `query: [Your question]`
+- **Role Templates**: Each role section (REFORMULATOR, ELUCIDATOR) provides task/instruction templates
+- **LLM Configuration**: The `## LLM_CONFIG` section overrides model parameters
+- **Behavioral Limits**: Word counts and item limits are defined in templates
+
+If `templates/prompts.md` is absent, the system uses hardcoded defaults from `llm_config.py`.
 
 ### Basic
 
@@ -75,7 +81,7 @@ python ccn_minirun.py "What are the key principles of machine learning?"
 python ccn_minirun.py [OPTIONS] QUERY
 
 Arguments:
-  QUERY  The input question (used unless overridden by templates/RUN.query)
+  QUERY  The input question (used unless templates/RUN.query overrides it)
 
 Options:
   -d, --debug          Enable debug mode with verbose output
@@ -128,7 +134,7 @@ This mode makes CCN dispatch `prompt_call` → `emit` and honor `call_plan`.
 ### Data Flow
 
 ```
-templates/prompts.md (RUN, LLM_CONFIG, role texts)
+templates/prompts.md (if present) → authoritative configuration
         ↓
 User/Template Query → REFORMULATOR → reformulated_question (JSON)
         ↓
@@ -138,6 +144,22 @@ Worker Roles → node_output_signal (JSON; length capped by Input[1] text)
         ↓
 SYNTHESIZER → node_output_signal (JSON)
 ```
+
+### Template Behavior When Present/Absent
+
+**When `templates/prompts.md` exists:**
+- **Query Override**: `## RUN` section's `query: [...]` overrides CLI arguments
+- **Role Instructions**: Task and instruction sections override hardcoded defaults
+- **LLM Parameters**: `## LLM_CONFIG` section overrides default model settings (missing parameters fall back to defaults)
+- **Limits & Constraints**: Word counts and item limits defined in templates
+- **Graceful Fallbacks**: Missing template sections use hardcoded defaults
+
+**When `templates/prompts.md` is absent:**
+- **Hardcoded Defaults**: System uses defaults from `llm_config.py`
+- **Default Parameters**: model=`openai/gpt-oss-120b`, temperature=`0.8`, etc.
+- **Default Limits**: REFORMULATOR (≤40 words), workers (≤70), SYNTHESIZER (≤140)
+- **ELUCIDATOR Items**: Limited to 4 total items (including SYNTHESIZER)
+- **No Override**: CLI arguments are always used for query input
 
 ### MEMORY Structure
 
@@ -158,7 +180,8 @@ SYNTHESIZER → node_output_signal (JSON)
 
 ### LLM Parameters
 
-Preferred source: `templates/prompts.md` under `## LLM_CONFIG`:
+**Template-Authoritative Configuration:**
+When `templates/prompts.md` exists, the `## LLM_CONFIG` section is the sole source for:
 
 - `model`
 - `temperature`
@@ -166,18 +189,19 @@ Preferred source: `templates/prompts.md` under `## LLM_CONFIG`:
 - `reasoning_effort`
 - `response_format` (e.g., `json_object`)
 
-Fallback behavior (when templates are missing):
-- The app proceeds with hardcoded defaults from `llm_config.py`:
-  - model: `openai/gpt-oss-120b`
-  - temperature: `0.8`
-  - max_tokens: `8192`
-  - reasoning_effort: `medium`
-  - response_format: `{ "type": "json_object" }`
+**Fallback Defaults (when templates absent):**
+- model: `openai/gpt-oss-120b`
+- temperature: `0.8`
+- max_tokens: `8192`
+- reasoning_effort: `medium`
+- response_format: `{ "type": "json_object" }`
 
-Notes:
-- If a template is present but `LLM_CONFIG` is incomplete, the run fails fast
-  (no partial fallbacks within a template). The hardcoded defaults are used
-  only when the template file is entirely absent or provides no config.
+**Configuration Rules:**
+- If template file exists but lacks `LLM_CONFIG`, system falls back to hardcoded defaults
+- Template role sections (REFORMULATOR, ELUCIDATOR) override hardcoded instructions
+- LLM parameters merge: template values override defaults, missing values use defaults
+- Hardcoded defaults used when template file is absent or specific sections are missing
+- Template changes take immediate effect (no code changes needed)
 
 ### Environment Variables
 
@@ -247,18 +271,32 @@ When using `--output` flag:
 
 ### Project Structure
 ```
-ccn-minimal-epn/
+EPN/
+├── AGENTS.md               # Agent implementation constraints & notes
 ├── ccn_minirun.py          # CLI entrypoint
-├── mini_memory.py          # MEMORY structures
-├── mini_synaptic.py        # KV parser/materializer
-├── worker_node.py          # Worker execution
+├── demo_ccn.py             # Interactive/demo runner
+├── example_usage.py        # Usage examples / quickstart snippets
+├── IMPLEMENTATION_SUMMARY.md
+├── conceptualization.md
+├── template_loader.py      # Template parsing / binding helpers
+├── llm_client.py           # Groq API wrapper
+├── llm_config.py           # Hardcoded defaults and config helpers
+├── mini_memory.py          # MEMORY dataclasses and structures
+├── mini_synaptic.py        # SYNAPTIC KV parser & materializer
 ├── mini_ccn.py             # CCN orchestrator
-├── llm_client.py           # Groq wrapper
-├── schemas/
-│   └── memory_record.schema.json
+├── worker_node.py          # Worker execution and role logic
+├── test_ccn.py             # Test harness / unit tests
 ├── requirements.txt
 ├── setup.py
-└── README.md
+├── README.md
+├── schemas/
+│   └── memory_record.schema.json
+├── templates/
+│   └── prompts.md
+├── scripts/
+│   └── live_prompt_capture.py
+├── reports/                # Generated run reports
+└── __pycache__/
 ```
 
 ### Adding New Roles
@@ -325,6 +363,7 @@ For issues and questions:
 - Check the troubleshooting section
 - Enable debug mode for detailed logs
 - Review the implementation against the mvp.md specification
+
 ## Testing The App
 
 1) Validate environment and client:
@@ -347,3 +386,8 @@ For issues and questions:
    - Edit `templates/prompts.md` → `## RUN` → `query: [Your question]`
    - Re‑run `python scripts/live_prompt_capture.py`
    - The report shows the template query in the header
+
+4) Test template-driven behavior:
+   - Remove `templates/prompts.md` temporarily
+   - Run the system and observe it uses hardcoded defaults
+   - Restore the file and observe template-authoritative behavior returns
