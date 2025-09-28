@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Optional
 from mini_memory import MaterializedRole, CCNEvent
 from template_loader import repo
 from llm_client import LLMClient, LLMError
+from llm_config import get_default_llm_config
 
 
 class WorkerNode:
@@ -103,10 +104,11 @@ class WorkerNode:
         ))
 
         try:
-            # Use only template-level LLM configuration (single source of truth)
+            # Prefer template-level LLM configuration; if templates are absent,
+            # fall back to hardcoded safe defaults from llm_config.py
             params = repo().get_llm_overrides()
             if not params:
-                raise LLMError("LLM configuration missing from templates/prompts.md (LLM_CONFIG section)")
+                params = get_default_llm_config()
             response = self.llm_client.call_completion(
                 prompt=prompt,
                 model=params.get('model'),
