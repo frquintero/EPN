@@ -1,27 +1,30 @@
 # CCN Minimal EPN Cycle
 
-A minimal, operable EPN (Execution Plan Network) cycle implementation with live Groq calls for the CCN (Cognitive Compute Network) framework.
+Template‑first, deterministic EPN (Epistemic Processing Network) cycle with a
+single Multi‑Worker and strict, audit‑friendly data flow. Prompts and LLM
+parameters are authored once in `templates/prompts.md` and treated as the
+single source of truth. CCN binds inputs and orchestrates execution; workers
+return strict JSON only.
 
 ## Overview
 
-This CLI application implements a complete CCN execution cycle with the following phases:
+This CLI application implements a complete CCN execution cycle:
 
-1. **REFORMULATOR** - Reformulates user input into clear, actionable questions
-2. **ELUCIDATOR** - Breaks down questions into specific tasks (max 4 items)
-3. **Worker Roles** - Executes individual tasks in parallel
-4. **SYNTHESIZER** - Combines all results into a coherent final response
+1. REFORMULATOR → reformulates the input into an epistemically sound question.
+2. ELUCIDATOR → decomposes into role‑labeled items plus a final SYNTHESIZER
+   directive (counts/word caps defined in templates).
+3. Worker Roles → execute against the decomposition string in `Input[1]`.
+4. SYNTHESIZER → integrates worker outputs per the final directive.
 
 ## Features
 
-- ✅ **Single Multi-Worker** architecture with CCN role assignment
-- ✅ **Internal MEMORY** management (worklist, active slot, archive, aggregator buffer, run log)
-- ✅ **JSON-only outputs** with strict parsing and validation
-- ✅ **Debug windows** for context snapshots, prompts, and responses
-- ✅ **Built-in roles**: REFORMULATOR, ELUCIDATOR, SYNTHESIZER
-- ✅ **Groq integration** with configurable LLM parameters
-- ✅ **Fail-fast** error handling with human-auditable logs
- - ✅ **Dispatch model**: MVP runs built-in steps inside the worker; optional
-   CCN-dispatch mode honors `call_plan` and dispatches steps from CCN
+- Single Multi‑Worker architecture with CCN role assignment
+- Internal MEMORY: worklist, active slot, archive, aggregator buffer, run log
+- Template‑first prompts; no hidden code fallbacks
+- Template‑first LLM configuration; fail‑fast if missing
+- Strict JSON envelopes; no auto‑correction of malformed JSON
+- Debug windows for prompts, responses, and parameters
+- Optional CCN‑dispatch (`--ccn-dispatch`) that honors `call_plan`
 
 ## Installation
 
@@ -57,7 +60,10 @@ pip install -e .
 
 ## Usage
 
-### Basic Usage
+The template may provide a query override (`## RUN → query: [ ... ]`). If it is
+non‑empty, it overrides the CLI argument.
+
+### Basic
 
 ```bash
 python ccn_minirun.py "What are the key principles of machine learning?"
@@ -69,7 +75,7 @@ python ccn_minirun.py "What are the key principles of machine learning?"
 python ccn_minirun.py [OPTIONS] QUERY
 
 Arguments:
-  QUERY  The input question or task to process
+  QUERY  The input question (used unless overridden by templates/RUN.query)
 
 Options:
   -d, --debug          Enable debug mode with verbose output
@@ -122,15 +128,15 @@ This mode makes CCN dispatch `prompt_call` → `emit` and honor `call_plan`.
 ### Data Flow
 
 ```
-User Input
-    ↓
-REFORMULATOR → Reformulated Question
-    ↓
-ELUCIDATOR → Task List (max 4 items)
-    ↓
-Worker Roles → Individual Results
-    ↓
-SYNTHESIZER → Final Synthesis
+templates/prompts.md (RUN, LLM_CONFIG, role texts)
+        ↓
+User/Template Query → REFORMULATOR → reformulated_question (JSON)
+        ↓
+ELUCIDATOR → query_decomposition (JSON; item count per template)
+        ↓
+Worker Roles → node_output_signal (JSON; length capped by Input[1] text)
+        ↓
+SYNTHESIZER → node_output_signal (JSON)
 ```
 
 ### MEMORY Structure
@@ -141,35 +147,27 @@ SYNTHESIZER → Final Synthesis
 - **aggregator_buffer**: Collection of worker outputs
 - **run_log**: Chronological event log
 
-### Built-in Roles
+### Built‑in Roles
 
-#### REFORMULATOR
-- **Purpose**: Clarify and reformulate user input
-- **Output**: `{"reformulated_question": "<text>"}`
-
-#### ELUCIDATOR  
-- **Purpose**: Break down complex questions into actionable tasks
-- **Output**: `{"tasks": [["task N", "ROLE: <NAME>. <desc> RESPONSE_JSON: {...}"], ...]}`
-- **Limit**: Maximum 4 tasks (including SYNTHESIZER)
-
-#### SYNTHESIZER
-- **Purpose**: Combine all worker outputs into final response
-- **Output**: `{"node_output_signal": "<text>"}`
+- REFORMULATOR → `{ "reformulated_question": "<text>" }`
+- ELUCIDATOR → `{ "query_decomposition": [["label","ROLE: <ROLE_NAME>. <desc> ..."], ...] }`
+- Worker roles → `{ "node_output_signal": "<text>" }`
+- SYNTHESIZER → `{ "node_output_signal": "<text>" }`
 
 ## Configuration
 
 ### LLM Parameters
 
-Default configuration for all roles:
-```python
-{
-    "model": "openai/gpt-oss-120b",
-    "temperature": 0.8,
-    "max_tokens": 8192,
-    "reasoning_effort": "medium",
-    "response_format": {"type": "json_object"}
-}
-```
+All LLM parameters are defined in `templates/prompts.md` under `## LLM_CONFIG`:
+
+- `model`
+- `temperature`
+- `max_tokens`
+- `reasoning_effort`
+- `response_format` (e.g., `json_object`)
+
+There are no environment or code fallbacks. Missing values cause a fail‑fast
+error at runtime.
 
 ### Environment Variables
 
@@ -317,3 +315,25 @@ For issues and questions:
 - Check the troubleshooting section
 - Enable debug mode for detailed logs
 - Review the implementation against the mvp.md specification
+## Testing The App
+
+1) Validate environment and client:
+   ```bash
+   python ccn_minirun.py --validate-only "test query"
+   ```
+
+2) Run a live capture (writes a full report under `reports/`):
+   ```bash
+   python scripts/live_prompt_capture.py "Why are models useful despite being wrong?"
+   ls -1 reports/ | head -n 3
+   ```
+
+   Inspect the latest report and confirm:
+   - Prompts match `templates/prompts.md`
+   - Worker Inputs include the length cap inside the decomposition string
+   - SYNTHESIZER prompt begins with the ELUCIDATOR directive
+
+3) Use the template‑provided query instead of CLI:
+   - Edit `templates/prompts.md` → `## RUN` → `query: [Your question]`
+   - Re‑run `python scripts/live_prompt_capture.py`
+   - The report shows the template query in the header
