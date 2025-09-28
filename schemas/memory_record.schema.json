@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://epn.ccn/schemas/memory_record.schema.json",
+  "title": "PerRoleRecord",
+  "description": "Schema for archive records produced per executed role in the MVP.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "node_id",
+    "entry_id",
+    "input_signals",
+    "tasks",
+    "timestamp"
+  ],
+  "properties": {
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entry_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "input_signals": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "node_output_signal": {
+      "type": ["string", "null"]
+    },
+    "tasks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "error": {
+      "type": ["string", "null"]
+    }
+  }
+}
+

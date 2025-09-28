@@ -10,8 +10,14 @@
 
 ## Architecture Overview
 
-- CCN: orchestrator; pops SYNAPTIC from MEMORY worklist, materializes Role from KV list → Node Template, binds inputs, dispatches canonical plan, mutates MEMORY.
-- Multi-Worker (single instance): executes assigned Role; methods: `build_prompt`, `prompt_call`, `emit` (returns values only; CCN mutates MEMORY).
+- CCN: orchestrator; pops SYNAPTIC from MEMORY worklist, materializes Role
+  from KV list → Node Template, binds inputs, and mutates MEMORY. In MVP,
+  built-in steps are invoked inside the worker; CCN does not dispatch
+  per-step calls. An optional mode can enable CCN-dispatch based on
+  `call_plan`.
+- Multi-Worker (single instance): executes assigned Role; methods:
+  `build_prompt`, `prompt_call`, `emit` (returns values only; CCN mutates
+  MEMORY). In MVP, `execute_role` runs `prompt_call` → `emit` internally.
 - MEMORY (explicit data structures):
   - worklist: deque[SynapticKVList]
   - active_slot: Optional[MaterializedRole]
@@ -27,7 +33,7 @@
 - SYNAPTIC format (data-plane): KV-pair list only. Strict semantics: no auto-create, arrays in-bounds or append at end, types must match template, only `attributes.*` and `llm_config.*` keys allowed.
 - Role Output Envelopes:
   - REFORMULATOR → `{ "reformulated_question": "<text>" }`.
-  - ELUCIDATOR → `{ "query_decomposition": [["label","ROLE: <ROLE_NAME>. <desc>"], ...] }` (maximum 4 items) with the final item for `ROLE: SYNTHESIZER`.
+  - ELUCIDATOR → `{ "query_decomposition": [["label","ROLE: <ROLE_NAME>. <desc>"], ...] }`. The number of items is defined in `templates/prompts.md` and not hard‑coded; the template normally instructs the final item to be `ROLE: SYNTHESIZER`.
   - Worker roles (default) → `{ "node_output_signal": "<text>" }`.
   - SYNTHESIZER → `{ "node_output_signal": "<text>" }`.
 
@@ -64,18 +70,29 @@ Output: JSON only `{ "reformulated_question": "<text>" }`.
 
 ## Execution Plan (canonical)
 
+MVP: the worker executes `prompt_call` → `emit` internally for all roles;
+CCN records outputs and mutates MEMORY. When CCN-dispatch is enabled, CCN
+invokes the plan directly and honors `call_plan` (validated to
+`["prompt_call", "emit"]`).
+
 - REFORMULATOR → `[prompt_call, emit]` (record output in MEMORY).
-- ELUCIDATOR → `[prompt_call, emit]` (record `query_decomposition` in MEMORY; CCN enqueues ≤4 worker roles + init Aggregator Buffer).
-- Worker Role (task-specific) → `[prompt_call, emit]` (append output to Aggregator Buffer).
+- ELUCIDATOR → `[prompt_call, emit]` (record `query_decomposition` in MEMORY;
+  CCN enqueues worker roles as instructed by the template and initializes the Aggregator Buffer).
+- Worker Role (task-specific) → `[prompt_call, emit]` (append output to
+  Aggregator Buffer).
 - SYNTHESIZER → `[prompt_call, emit]` (record final output).
 
 ## Binding Rules (producer → consumer)
 
 - User input → REFORMULATOR: bind query → `attributes.input_signals[0]`.
 - REFORMULATOR → ELUCIDATOR: parse JSON, extract `reformulated_question` → `attributes.input_signals[0]`.
-- ELUCIDATOR → Worker Roles: parse object, read `query_decomposition` (max 4 items). For each item `[label, qd_string]`, extract `<ROLE_NAME>` from `qd_string`, set `attributes.node_id = <ROLE_NAME>`, and bind the entire `qd_string` → `attributes.input_signals[0]`. Do not populate `attributes.tasks` unless required by the role.
+- ELUCIDATOR → Worker Roles: parse object, read `query_decomposition` (count governed by template). For each item `[label, qd_string]`, extract `<ROLE_NAME>` from `qd_string`, set `attributes.node_id = <ROLE_NAME>`, and bind the entire `qd_string` → `attributes.input_signals[0]`. Do not populate `attributes.tasks` unless required by the role.
 - Workers → SYNTHESIZER: append `node_output_signal` to Aggregator Buffer.
-- ELUCIDATOR (final decomposition) → SYNTHESIZER: bind each worker output as a separate item in `attributes.input_signals` (preserving order). Apply the final SYNTHESIZER directive as `attributes.instructions`.
+- ELUCIDATOR (final decomposition) → SYNTHESIZER: bind
+  `reformulated_question` → `attributes.input_signals[0]`, then bind each
+  worker output as a separate item in `attributes.input_signals[1..]`
+  (preserving order). Apply the final SYNTHESIZER directive as
+  `attributes.instructions`.
 
 ## Prompt Construction (guide)
 
@@ -86,7 +103,10 @@ Output: JSON only `{ "reformulated_question": "<text>" }`.
 ## Call Plan Overrides (MVP)
 
 - Allowed plan items: `["prompt_call", "emit"]` only.
-- Validation: if `call_plan` present, must be a list of allowed items in canonical order; otherwise error.
+- Validation: if `call_plan` present, must be a list of allowed items in
+  canonical order; otherwise error.
+- Runtime: in MVP, `call_plan` is validated but ignored (worker runs the
+  steps). When CCN-dispatch is enabled, `call_plan` becomes authoritative.
 - `call_args`: not used in MVP; if present, must be an empty object (`{}`).
 
 ## LLM Invocation (Groq)
@@ -110,7 +130,7 @@ Output: JSON only `{ "reformulated_question": "<text>" }`.
 
 ## Limits & Timeouts (MVP)
 
-- ELUCIDATOR query_decomposition: max 4 items (including final SYNTHESIZER).
+- ELUCIDATOR query_decomposition: numeric cap is defined in `templates/prompts.md` (not hard‑coded).
 - Worklist/aggregator caps: configurable (defaults: worklist≤100, buffer≤100).
 - LLM call timeout: configurable per call; abort on timeout and archive error.
 
@@ -137,10 +157,15 @@ Output: JSON only `{ "reformulated_question": "<text>" }`.
 - Env: `export GROQ_API_KEY=gsk_...`
 - Output: per-cycle windows + final JSON from SYNTHESIZER printed to stdout.
 
+Advanced (optional CCN-dispatch):
+
+- Run: `python ccn_minirun.py --ccn-dispatch "Explain quantum computing"`
+- Effect: CCN dispatches `prompt_call` → `emit` and honors `call_plan`.
+
 ## Milestones
 
 1) Scaffolding: MEMORY, KV materializer, Node Template, WorkerNode stubs, Groq client wrapper.
-2) Built-ins: implement REFORMULATOR + ELUCIDATOR contracts (ELUCIDATOR ≤4 query_decomposition items); run end-to-end through worker enqueue.
+2) Built-ins: implement REFORMULATOR + ELUCIDATOR contracts; run end-to-end through worker enqueue. The number of ELUCIDATOR items is governed by `templates/prompts.md`.
 3) Worker roles + Aggregator: parse query_decomposition items, execute workers, append to buffer.
 4) SYNTHESIZER: consume buffer and produce final JSON.
 5) Windows + Archive: full logging, archive PerRoleRecord, end-of-run validation.

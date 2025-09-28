@@ -11,6 +11,7 @@ from rich.json import JSON
 from rich.traceback import install
 
 from llm_client import LLMClient, LLMError
+from template_loader import repo as template_repo
 from worker_node import WorkerNode
 from mini_ccn import MiniCCN, CCNError
 from jsonschema import validate, ValidationError
@@ -49,11 +50,24 @@ def validate_archive(archive_data: list, strict: bool = False) -> bool:
 
 @click.command()
 @click.argument('query', required=True)
-@click.option('--debug', '-d', is_flag=True, help='Enable debug mode with verbose output')
-@click.option('--strict', '-s', is_flag=True, help='Enable strict mode (fail on validation errors)')
-@click.option('--output', '-o', type=click.Path(), help='Output file for results')
-@click.option('--validate-only', is_flag=True, help='Only validate setup without executing')
-def main(query: str, debug: bool, strict: bool, output: Optional[str], validate_only: bool) -> None:
+@click.option('--debug', '-d', is_flag=True,
+              help='Enable debug mode with verbose output')
+@click.option('--strict', '-s', is_flag=True,
+              help='Enable strict mode (fail on validation errors)')
+@click.option('--output', '-o', type=click.Path(),
+              help='Output file for results')
+@click.option('--validate-only', is_flag=True,
+              help='Only validate setup without executing')
+@click.option('--ccn-dispatch', is_flag=True,
+              help='Dispatch built-in steps in CCN using call_plan')
+def main(
+    query: str,
+    debug: bool,
+    strict: bool,
+    output: Optional[str],
+    validate_only: bool,
+    ccn_dispatch: bool,
+) -> None:
     """Run the CCN minimal EPN cycle with the given query.
     
     QUERY: The input question or task to process through the CCN pipeline.
@@ -79,18 +93,22 @@ def main(query: str, debug: bool, strict: bool, output: Optional[str], validate_
         
         # Initialize worker and CCN
         worker_node = WorkerNode(llm_client)
-        ccn = MiniCCN(worker_node, debug=debug)
+        ccn = MiniCCN(worker_node, debug=debug, dispatch_in_ccn=ccn_dispatch)
         
         if validate_only:
             console.print("[green]✓ Setup validation successful[/green]")
             return
         
+        # Allow prompts.md to override the input query if present
+        override_query = template_repo().get_initial_query()
+        effective_query = override_query if override_query else query
+
         # Execute CCN cycle
-        console.print(f"\n[bold]Processing query:[/bold] {query}")
+        console.print(f"\n[bold]Processing query:[/bold] {effective_query}")
         console.print("=" * 50)
         
         try:
-            result = ccn.execute(query)
+            result = ccn.execute(effective_query)
             
             # Display results
             console.print("\n[bold green]✓ Execution completed successfully[/bold green]")
@@ -122,7 +140,7 @@ def main(query: str, debug: bool, strict: bool, output: Optional[str], validate_
             # Save output if requested
             if output:
                 output_data = {
-                    'query': query,
+                    'query': effective_query,
                     'result': result,
                     'summary': summary,
                     'archive': [record.to_dict() for record in ccn.memory.archive],

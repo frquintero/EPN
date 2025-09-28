@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 from llm_client import LLMClient
 from worker_node import WorkerNode
 from mini_ccn import MiniCCN, CCNError
+from template_loader import repo as template_repo
 
 
 @dataclass
@@ -30,8 +31,10 @@ class RoleLog:
 
 
 def main() -> None:
-    # Allow custom query via CLI arg, else use default
-    query = sys.argv[1] if len(sys.argv) > 1 else "Why is there something than nothing"
+    # Allow custom query via CLI arg, else use default; prompts.md may override
+    cli_query = sys.argv[1] if len(sys.argv) > 1 else "Why is there something than nothing"
+    override = template_repo().get_initial_query()
+    query = override if override else cli_query
 
     client = LLMClient()
     worker_node = WorkerNode(client)

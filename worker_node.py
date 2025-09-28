@@ -3,7 +3,7 @@
 import json
 from typing import Any, Callable, Dict, List, Optional
 from mini_memory import MaterializedRole, CCNEvent
-from llm_config import merge_llm_config
+from template_loader import repo
 from llm_client import LLMClient, LLMError
 
 
@@ -27,16 +27,19 @@ class WorkerNode:
     def build_prompt(self, role: MaterializedRole) -> str:
         """Build prompt from materialized role."""
         prompt_parts = []
-        
+        templates = repo()
+        role_tpl = templates.get_raw_template(role.node_id)
+
         # Header with role name
         prompt_parts.append(f"Role: {role.node_id}")
         prompt_parts.append("")
-        
-        # Task (skip for SYNTHESIZER to keep directive-only style)
-        if role.tasks and role.node_id != 'SYNTHESIZER':
-            prompt_parts.append(f"Task: {role.tasks[0]}")
-            prompt_parts.append("")
-        
+
+        # Task for built-ins pulled from templates; never use tasks list for display
+        if role.node_id in {"REFORMULATOR", "ELUCIDATOR"}:
+            if role_tpl and role_tpl.task:
+                prompt_parts.append("Task: " + role_tpl.task)
+                prompt_parts.append("")
+
         # For SYNTHESIZER, print directive (instructions) before inputs
         if role.node_id == 'SYNTHESIZER' and role.instructions:
             prompt_parts.append(role.instructions)
@@ -48,9 +51,21 @@ class WorkerNode:
                 prompt_parts.append(f"  Input[{i}]: {signal}")
             prompt_parts.append("")
         
-        # Instructions (skip labeled section for SYNTHESIZER because directive is above)
-        if role.instructions and role.node_id != 'SYNTHESIZER':
-            prompt_parts.append(f"Instructions: {role.instructions}")
+        # Instructions
+        instr_text: Optional[str] = None
+        if role.node_id == 'REFORMULATOR':
+            instr_text = role_tpl.instructions if (role_tpl and role_tpl.instructions) else None
+        elif role.node_id == 'ELUCIDATOR':
+            instr_text = role_tpl.instructions if (role_tpl and role_tpl.instructions) else None
+        elif role.node_id == 'SYNTHESIZER':
+            instr_text = None  # directive printed earlier
+        else:
+            # Dynamic worker roles: only use explicit role template instructions if present
+            if role_tpl and role_tpl.instructions:
+                instr_text = role_tpl.instructions
+
+        if instr_text:
+            prompt_parts.append(f"Instructions: {instr_text}")
             prompt_parts.append("")
         
         # JSON contract reminder
@@ -88,7 +103,10 @@ class WorkerNode:
         ))
 
         try:
-            params = merge_llm_config(role.llm_config)
+            # Use only template-level LLM configuration (single source of truth)
+            params = repo().get_llm_overrides()
+            if not params:
+                raise LLMError("LLM configuration missing from templates/prompts.md (LLM_CONFIG section)")
             response = self.llm_client.call_completion(
                 prompt=prompt,
                 model=params.get('model'),
@@ -132,8 +150,6 @@ class WorkerNode:
             qd = response['query_decomposition']
             if not isinstance(qd, list):
                 raise ValueError(f"ELUCIDATOR query_decomposition must be a list: {qd}")
-            if len(qd) > 4:
-                raise ValueError(f"ELUCIDATOR query_decomposition exceeds maximum 4 items: {len(qd)}")
             return qd
         
         else:

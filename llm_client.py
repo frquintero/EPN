@@ -3,7 +3,6 @@
 import os
 import json
 from typing import Any, Dict, Optional
-from llm_config import get_default_llm_config
 from groq import Groq
 
 
@@ -36,27 +35,18 @@ class LLMClient:
         response_format: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Call Groq chat completion."""
-        # Fall back to centralized defaults if any parameter is missing
-        defaults = get_default_llm_config()
-        if model is None:
-            model = defaults["model"]
-        if temperature is None:
-            temperature = defaults["temperature"]
-        if max_tokens is None:
-            max_tokens = defaults["max_tokens"]
+        # Require all parameters (single source of truth in templates)
+        if model is None or temperature is None or max_tokens is None:
+            raise LLMError("LLM parameters missing: model/temperature/max_tokens must be set via templates")
         if response_format is None:
-            response_format = defaults["response_format"]
+            raise LLMError("response_format must be set via templates (e.g., json_object)")
+        if isinstance(response_format, str) and response_format.lower() == "json_object":
+            response_format = {"type": "json_object"}
         
         try:
             messages = []
-            # Add a system hint to satisfy providers that require explicit JSON mention
-            if response_format.get("type") == "json_object":
-                messages.append({"role": "system", "content": "Return only JSON. Respond with a valid JSON object."})
+            # Keep messages minimal; prompt carries all guidance
             messages.append({"role": "user", "content": prompt})
-            
-            # Add assistant priming for JSON
-            if response_format.get("type") == "json_object":
-                messages.append({"role": "assistant", "content": "{"})
             
             completion = self.client.chat.completions.create(
                 model=model,
@@ -69,11 +59,8 @@ class LLMClient:
             content = completion.choices[0].message.content
             self._last_raw_response = content
             
-            # Handle JSON response
+            # Handle JSON response (fail-fast without auto-correction)
             if response_format.get("type") == "json_object":
-                if not content.strip().startswith('{'):
-                    content = "{" + content
-                
                 try:
                     parsed = json.loads(content)
                     return parsed

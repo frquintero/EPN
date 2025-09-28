@@ -155,18 +155,6 @@ class NodeTemplates:
         kv_list.add('attributes.node_id', 'REFORMULATOR')
         kv_list.add('attributes.entry_id', 'reformulator_001')
         kv_list.add('attributes.input_signals', [input_query])
-        kv_list.add('attributes.tasks', ['ROLE: REFORMULATOR'])
-        kv_list.add(
-            'attributes.instructions',
-            """
-MANDATORY TRANSFORMATIONS:
-1. Replace "what are" with "how do/function as" or "what constitutes"
-2. Add epistemic contextual depth
-3. Include narrative hooks ("evolution of", "function as", "role in")
-4. Eliminate assumption of simple answers
-5. Prime for multi-perspective analysis
-""".strip()
-        )
         # LLM config is centralized; rely on defaults/env. No per-role values needed here.
         return kv_list
 
@@ -177,21 +165,6 @@ MANDATORY TRANSFORMATIONS:
         kv_list.add('attributes.node_id', 'ELUCIDATOR')
         kv_list.add('attributes.entry_id', 'elucidator_001')
         kv_list.add('attributes.input_signals', [reformulated_question])
-        kv_list.add('attributes.tasks', [
-            'ROLE: ELUCIDATOR. You are an epistemological query_decompositor specialist. '
-            'Your function is to analyze complex inquiries and break them down into 2-4 specialized, self-contained investigative questions drawn from relevant knowledge domains. '
-            'Each query_decomposition stands alone with complete semantic integrity, focused on specific aspects of the original inquiry. '
-            'Together they enable comprehensive understanding extraction.'
-        ])
-        kv_list.add(
-            'attributes.instructions',
-            'Output MUST be a JSON object with exactly one field \'query_decomposition\' (no prose before/after).\n'
-            "Each array item MUST be a two-element array: ['query_decomposition N', 'ROLE: <ROLE_NAME>. <query_decomposition description>']\n"
-            '<ROLE_NAME> MUST be UPPERCASE with underscores only.\n'
-            "The last item MUST be ['query_decomposition X', 'ROLE: SYNTHESIZER. You are an integrative knowledge synthesizer. Your function is to analyze and integrate the collected query decompositions into a coherent, evidence-grounded synthesis that presents one or more well-supported proposed answers. Keep your response under 140 words']\n"
-            'Keep each query_decomposition under 70 words.\n'
-            'Select at most 4 items in total (including the final SYNTHESIZER item).'
-        )
         # LLM config is centralized; rely on defaults/env. No per-role values needed here.
         return kv_list
     
@@ -203,8 +176,6 @@ MANDATORY TRANSFORMATIONS:
         kv_list.add('attributes.entry_id', f'{role_name.lower()}_{task_index:03}')
         kv_list.add('attributes.input_signals', [])
         kv_list.add('attributes.tasks', [])
-        # Keep worker outputs concise for downstream synthesis and auditing
-        kv_list.add('attributes.instructions', 'Keep your response under 70 words.')
         # LLM config is centralized; rely on defaults/env. No per-role values needed here.
         return kv_list
     
@@ -215,8 +186,5 @@ MANDATORY TRANSFORMATIONS:
         kv_list.add('attributes.node_id', 'SYNTHESIZER')
         kv_list.add('attributes.entry_id', 'synthesizer_001')
         kv_list.add('attributes.input_signals', ['Aggregator buffer contents'])
-        kv_list.add('attributes.instructions',
-            'Synthesize the outputs from all worker roles into a coherent final response. '
-            'Return JSON: {"node_output_signal": "<final synthesized output>"}')
         # LLM config is centralized; rely on defaults/env. No per-role values needed here.
         return kv_list

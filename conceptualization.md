@@ -8,15 +8,21 @@ contexts, relationships, and interpretations; (3) executing those tasks with
 specialized LLM-backed workers; and (4) synthesizing the results into a
 coherent answer.
 
-In this design, CCN is the deterministic spine of EPN. It loads human-authored
-`SYNAPTIC` entries (e.g., REFORMULATOR, ELUCIDATOR) from JSON, validates them
-against a canonical Node Template, creates a single Multi-Worker via
-`type()`, and dispatches built-in methods in a predictable order. Workers do
-not access `MEMORY`; CCN feeds them inputs and they return results via a
-single `emit` operation. CCN performs all MEMORY mutations (recording,
-targeted updates, or enqueuing new entries) based on those results. This
-contract-first approach keeps data flow explicit, prevents
-hidden side-effects, and makes the pipeline reproducible and auditable.
+In the full design, CCN is the deterministic spine of EPN. It loads
+human-authored `SYNAPTIC` entries (e.g., REFORMULATOR, ELUCIDATOR) from JSON,
+validates them against a canonical Node Template, creates a single
+Multi-Worker (e.g., via a template-driven factory), and dispatches built-in
+methods in a predictable order. Workers do not access `MEMORY`; CCN feeds them
+inputs and they return results via a single `emit` operation. CCN performs all
+MEMORY mutations (recording, targeted updates, or enqueuing new entries) based
+on those results. This contract-first approach keeps data flow explicit,
+prevents hidden side-effects, and makes the pipeline reproducible and
+auditable.
+
+MVP note: the current implementation instantiates a predefined Multi-Worker
+class and runs built-in steps inside the worker (prompt_call → emit). CCN
+still owns orchestration, binding, and MEMORY mutations. A future or optional
+mode can enable CCN-dispatch of built-in steps based on `call_plan`.
 
 ## Class Creator Node (CCN)
 
@@ -163,10 +169,11 @@ It does not include method toggles or a call plan.
   new instantiation is performed per Role.
 - Role state is overwritten from the assigned `SYNAPTIC`; an explicit reset
   method is not required.
-- Built-in methods are dispatched per the canonical plan (or a provided
-  `call_plan` override). Upon completion, CCN marks the processed entry as
-  completed and archives it in
-  MEMORY (it remains available for inspection and auditing).
+- Built-in methods follow the canonical plan. In MVP, the Multi-Worker
+  invokes these steps internally; CCN does not dispatch individual steps. In a
+  future/optional mode, CCN can dispatch per-step calls using `call_plan`.
+  Upon completion, CCN marks the processed entry as completed and archives it
+  in MEMORY (it remains available for inspection and auditing).
 - Persistent data lives in `SYNAPTIC` entries and in CCN’s recorded outputs;
   the Multi-Worker remains effectively stateless across Roles beyond
   ephemeral in-method state.
@@ -262,15 +269,18 @@ By default, CCN binds values into `attributes.input_signals` per role type:
   REFORMULATOR `input_signals[0]`.
 - REFORMULATOR → ELUCIDATOR: extract `reformulated_question` →
   ELUCIDATOR `input_signals[0]`.
-- ELUCIDATOR → Worker Roles: parse `query_decomposition` (≤4). For each
+- ELUCIDATOR → Worker Roles: parse `query_decomposition` (count as instructed
+  by the template). For each
   `[label, qd_string]`, extract `<ROLE_NAME>`, then:
   - set `attributes.node_id = <ROLE_NAME>`
   - set `input_signals[0] = qd_string` (entire string with `ROLE:`)
   - leave `attributes.tasks` empty unless the role explicitly requires it
 - Worker Roles → Aggregator: append `node_output_signal` to Aggregator Buffer.
-- ELUCIDATOR (final decomposition) → SYNTHESIZER: bind each worker output as a
-  separate entry in `attributes.input_signals` (preserving order). Apply the
-  final SYNTHESIZER directive text as the role's `attributes.instructions`.
+- ELUCIDATOR (final decomposition) → SYNTHESIZER: bind the
+  `reformulated_question` to `attributes.input_signals[0]`, then bind each
+  worker output as a separate entry in `attributes.input_signals[1..]`
+  (preserving order). Apply the final SYNTHESIZER directive text as the role's
+  `attributes.instructions`.
 
 Advanced bindings can be expressed via `call_args` (e.g., internal targets),
 but the default rule above ensures deterministic progression without requiring
@@ -278,17 +288,19 @@ workers to access MEMORY.
 
 ### Default Execution Plan and Routing (CCN)
 
-CCN enforces a canonical execution plan and default routing per Role. If a
-Synaptic entry omits `call_plan`/`call_args`, CCN applies the following:
+CCN enforces a canonical execution plan and default routing per Role. In MVP,
+the Multi-Worker runs `prompt_call` → `emit` internally and CCN records the
+resulting values and mutates MEMORY. The `call_plan` value is validated but is
+not used at runtime.
 
-- REFORMULATOR: plan `["prompt_call", "emit"]`, CCN records output in MEMORY.
-- ELUCIDATOR: plan `["prompt_call", "emit"]`, CCN records output in MEMORY.
-- Worker Role (task-specific): plan `["prompt_call", "emit"]`, CCN appends
-  output to the Aggregator Buffer in MEMORY.
-- SYNTHESIZER: plan `["prompt_call", "emit"]`, CCN records final output.
+When CCN-dispatch is enabled (optional mode), CCN applies the plan:
 
-When `call_plan`/`call_args` are present in a Synaptic entry, CCN treats them
-as explicit overrides of the canonical defaults.
+- REFORMULATOR: `["prompt_call", "emit"]` → record output in MEMORY.
+- ELUCIDATOR: `["prompt_call", "emit"]` → record `query_decomposition` in
+  MEMORY and enqueue derived roles.
+- Worker Role: `["prompt_call", "emit"]` → append output to the Aggregator
+  Buffer in MEMORY.
+- SYNTHESIZER: `["prompt_call", "emit"]` → record final output.
 
 ## Prompt Construction
 
@@ -476,7 +488,8 @@ target; CCN routes outputs per its default plan.
 
 ELUCIDATOR must output a strict JSON object with exactly one field
 `query_decomposition`.
-`query_decomposition` is a JSON array (maximum 4 items) of two‑element arrays,
+`query_decomposition` is a JSON array of two‑element arrays. The number of
+items is defined in `templates/prompts.md` (not hard‑coded in code),
 where the second element starts with a Role declaration followed by a concise
 decomposition string for the downstream role:
 
@@ -507,8 +520,9 @@ Canonical rules:
 - Each item is self-contained: it carries all semantics needed for the worker
   to understand and execute the decomposition. The full decomposition string is
   passed as the worker’s primary input value.
-- The list MUST contain at most 4 items in total. The final item MUST be a
-  `ROLE: SYNTHESIZER` decomposition that instructs the synthesis step.
+- The template normally instructs a limited number of items and ends with a
+  `ROLE: SYNTHESIZER` decomposition that instructs the synthesis step. The
+  implementation does not hard‑code the cap; it follows the template.
 
 CCN parses this output and enqueues one worker Role per item, setting
 `attributes.node_id` to `<ROLE_NAME>`, and placing the exact decomposition

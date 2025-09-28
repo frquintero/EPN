@@ -20,6 +20,8 @@ This CLI application implements a complete CCN execution cycle with the followin
 - ✅ **Built-in roles**: REFORMULATOR, ELUCIDATOR, SYNTHESIZER
 - ✅ **Groq integration** with configurable LLM parameters
 - ✅ **Fail-fast** error handling with human-auditable logs
+ - ✅ **Dispatch model**: MVP runs built-in steps inside the worker; optional
+   CCN-dispatch mode honors `call_plan` and dispatches steps from CCN
 
 ## Installation
 
@@ -74,6 +76,7 @@ Options:
   -s, --strict         Enable strict mode (fail on validation errors)
   -o, --output PATH    Output file for results
   --validate-only      Only validate setup without executing
+  --ccn-dispatch       Dispatch built-in steps in CCN (honor call_plan)
   --help              Show this message and exit
 ```
 
@@ -98,6 +101,12 @@ python ccn_minirun.py -o results.json "Analyze the benefits of renewable energy"
 ```bash
 python ccn_minirun.py -s "Describe the water cycle"
 ```
+
+#### CCN Dispatch (advanced)
+```bash
+python ccn_minirun.py --ccn-dispatch "Explain quantum computing"
+```
+This mode makes CCN dispatch `prompt_call` → `emit` and honor `call_plan`.
 
 ## Architecture
 

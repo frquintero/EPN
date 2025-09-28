@@ -15,14 +15,27 @@ class CCNError(Exception):
 
 
 class MiniCCN:
-    """CCN orchestrator for managing the execution cycle."""
-    
-    def __init__(self, worker_node: WorkerNode, debug: bool = False):
-        """Initialize CCN with worker node and debug flag."""
+    """CCN orchestrator for managing the execution cycle.
+
+    In the MVP, method dispatch (prompt_call → emit) is performed inside the
+    worker via `execute_role`. To keep a migration path for CCN-dispatch, an
+    optional `dispatch_in_ccn` flag allows CCN to honor `call_plan` and invoke
+    built-in steps directly. Default remains worker-dispatch to preserve
+    behavior.
+    """
+
+    def __init__(
+        self,
+        worker_node: WorkerNode,
+        debug: bool = False,
+        dispatch_in_ccn: bool = False,
+    ):
+        """Initialize CCN with worker node and debug/dispatch flags."""
         self.memory = MEMORY()
         self.worker_node = worker_node
         self.worker_node.set_event_sink(self.memory.log_event)
         self.debug = debug
+        self.dispatch_in_ccn = dispatch_in_ccn
         self.pending_worker_specs = deque()
         self.synthesizer_spec: Optional[Dict[str, Any]] = None
         self.reformulated_question: Optional[str] = None
@@ -55,7 +68,8 @@ class MiniCCN:
         if dot_index == -1:
             raise CCNError(f"ELUCIDATOR item {index + 1} missing role description separator")
 
-        role_name = role_indicator[:dot_index].strip()
+        # Normalize role name to reduce brittle failures from minor casing issues
+        role_name = role_indicator[:dot_index].strip().upper()
         description = role_indicator[dot_index + 1 :].strip()
 
         if not role_name:
@@ -64,7 +78,9 @@ class MiniCCN:
             raise CCNError(f"ELUCIDATOR item {index + 1} missing description")
 
         if not all(part.isupper() for part in role_name.split('_') if part):
-            raise CCNError(f"ELUCIDATOR item {index + 1} role name '{role_name}' must use uppercase letters and underscores")
+            raise CCNError(
+                f"ELUCIDATOR item {index + 1} role name '{role_name}' must use uppercase letters and underscores"
+            )
 
         return {
             'index': index + 1,
@@ -78,8 +94,6 @@ class MiniCCN:
         """Parse and validate ELUCIDATOR query_decomposition list."""
         if not items:
             raise CCNError("ELUCIDATOR did not emit any query_decomposition items")
-        if len(items) > 4:
-            raise CCNError("ELUCIDATOR emitted more than 4 items")
 
         parsed = [self._parse_task_entry(idx, it) for idx, it in enumerate(items)]
 
@@ -90,6 +104,51 @@ class MiniCCN:
         synthesizer_spec = parsed[-1]
 
         return worker_specs, synthesizer_spec
+
+    def _run_plan(self, role: MaterializedRole) -> Any:
+        """Execute a role either via worker-dispatch or CCN-dispatch.
+
+        - If `dispatch_in_ccn` is False, call `worker_node.execute_role`.
+        - If True, honor `role.call_plan` (default [prompt_call, emit]) and
+          invoke steps explicitly. Emits role_start/complete events here.
+        """
+        if not self.dispatch_in_ccn:
+            return self.worker_node.execute_role(role)
+
+        # CCN-dispatch path
+        self.memory.log_event(CCNEvent(
+            event_type='role_start',
+            node_id=role.node_id,
+            data={'role': role.__dict__}
+        ))
+
+        plan = role.call_plan or ['prompt_call', 'emit']
+        response: Any = None
+        result: Any = None
+
+        for step in plan:
+            if step == 'prompt_call':
+                response = self.worker_node.prompt_call(role)
+            elif step == 'emit':
+                if response is None:
+                    raise CCNError(
+                        f"call_plan for {role.node_id} invoked 'emit' before "
+                        "'prompt_call'"
+                    )
+                result = self.worker_node.emit(response, role)
+            else:
+                raise CCNError(f"Unsupported plan step '{step}' for {role.node_id}")
+
+        if result is None:
+            raise CCNError(f"No result produced for role {role.node_id}")
+
+        self.memory.log_event(CCNEvent(
+            event_type='role_complete',
+            node_id=role.node_id,
+            data={'result': result}
+        ))
+
+        return result
 
     def bind_inputs(self, source_role: str, target_role: MaterializedRole,
                    source_output: Any) -> MaterializedRole:
@@ -178,7 +237,7 @@ class MiniCCN:
         
         # Execute role
         try:
-            result = self.worker_node.execute_role(role)
+            result = self._run_plan(role)
             
             # Archive result
             record = PerRoleRecord(
@@ -227,7 +286,7 @@ class MiniCCN:
         
         # Execute role
         try:
-            result = self.worker_node.execute_role(role)
+            result = self._run_plan(role)
             self.pending_worker_specs.clear()
             try:
                 worker_specs, synthesizer_spec = self._parse_elucidator_tasks(result)
@@ -306,7 +365,7 @@ class MiniCCN:
         
         # Execute role
         try:
-            result = self.worker_node.execute_role(role)
+            result = self._run_plan(role)
             
             # Add to aggregator buffer
             # Append a formatted item that carries the original decomposition header and the worker output
