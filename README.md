@@ -31,7 +31,7 @@ This CLI application implements a complete CCN execution cycle:
 ### Prerequisites
 
 - Python 3.11+
-- Groq API key
+- API key for your chosen LLM provider (Groq or DeepSeek)
 
 ### Setup
 
@@ -46,9 +46,34 @@ cd minimal-epn
 pip install -r requirements.txt
 ```
 
-3. Set your Groq API key:
+3. Set your API key (choose one provider):
+
+**For Groq (default):**
 ```bash
-export GROQ_API_KEY="your-api-key-here"
+export GROQ_API_KEY="your-groq-api-key-here"
+```
+
+**For DeepSeek:**
+```bash
+export DEEPSEEK_API_KEY="your-deepseek-api-key-here"
+```
+
+### Provider Configuration
+
+The system supports multiple LLM providers through template configuration:
+
+- **Groq** (default): Fast, reliable, good for production use
+- **DeepSeek**: Cost-effective alternative with strong reasoning capabilities
+
+To switch providers, modify `templates/prompts.md` or create provider-specific templates:
+
+```markdown
+## LLM_CONFIG
+provider: deepseek  # or 'groq'
+model: deepseek-chat
+temperature: 1.0
+max_tokens: 8192
+response_format: json_object
 ```
 
 ### Alternative Installation

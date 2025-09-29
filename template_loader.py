@@ -127,7 +127,7 @@ class PromptsRepository:
             if rf.lower() == "json_object":
                 overrides["response_format"] = {"type": "json_object"}
         # Only keep known keys used by llm_config
-        allowed = {"model", "temperature", "max_tokens", "reasoning_effort", "response_format"}
+        allowed = {"provider", "model", "temperature", "max_tokens", "reasoning_effort", "response_format"}
         return {k: v for k, v in overrides.items() if k in allowed}
 
     def _parse_initial_query(self, body: str) -> Tuple[Optional[str], Optional[str]]:
@@ -190,8 +190,8 @@ class PromptsRepository:
 _repo: Optional[PromptsRepository] = None
 
 
-def repo() -> PromptsRepository:
+def repo(path: Optional[str] = None) -> PromptsRepository:
     global _repo
-    if _repo is None:
-        _repo = PromptsRepository()
+    if _repo is None or (path is not None and _repo.path != path):
+        _repo = PromptsRepository(path)
     return _repo

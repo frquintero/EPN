@@ -23,11 +23,31 @@ install(show_locals=True)
 console = Console()
 
 
-def validate_environment() -> None:
-    """Validate required environment variables."""
-    if "GROQ_API_KEY" not in os.environ:
-        console.print("[red]Error: GROQ_API_KEY environment variable is required[/red]")
+def validate_environment() -> str:
+    """Validate required environment variables and return the provider name.
+
+    Returns:
+        str: The provider name ('groq' or 'deepseek')
+    """
+    from llm_config import get_default_llm_config
+
+    # Get provider from configuration (templates can override)
+    config = get_default_llm_config()
+    provider = config.get("provider", "groq")
+
+    if provider == "groq":
+        if "GROQ_API_KEY" not in os.environ:
+            console.print("[red]Error: GROQ_API_KEY environment variable is required for Groq provider[/red]")
+            sys.exit(1)
+    elif provider == "deepseek":
+        if "DEEPSEEK_API_KEY" not in os.environ:
+            console.print("[red]Error: DEEPSEEK_API_KEY environment variable is required for DeepSeek provider[/red]")
+            sys.exit(1)
+    else:
+        console.print(f"[red]Error: Unsupported provider '{provider}'. Supported: groq, deepseek[/red]")
         sys.exit(1)
+
+    return provider
 
 
 def validate_archive(archive_data: list, strict: bool = False) -> bool:
@@ -77,19 +97,19 @@ def main(
     """
     
     try:
-        # Validate environment
-        validate_environment()
-        
+        # Validate environment and get provider
+        provider = validate_environment()
+
         # Initialize components
         console.print("[bold blue]Initializing CCN Minimal EPN Cycle[/bold blue]")
-        
+
         # Test LLM connection
-        console.print("Testing Groq API connection...")
-        llm_client = LLMClient()
+        console.print(f"Testing {provider.title()} API connection...")
+        llm_client = LLMClient(provider_name=provider)
         if not llm_client.test_connection():
-            console.print("[red]Failed to connect to Groq API[/red]")
+            console.print(f"[red]Failed to connect to {provider.title()} API[/red]")
             sys.exit(1)
-        console.print("[green]✓ Groq API connection successful[/green]")
+        console.print(f"[green]✓ {provider.title()} API connection successful[/green]")
         
         # Initialize worker and CCN
         worker_node = WorkerNode(llm_client)

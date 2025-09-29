@@ -6,7 +6,7 @@ Mandatory Runtime-Error Reporting Rule:
   `RuntimeError` during development or while running the pipeline, the
   agent must, before applying code changes, do the following and include
   the results in the commit/PR description or in an accompanying note:
-  1. **Diagnosis:** Briefly explain what you think the root cause is
+  1. **Diagnosis:** Briefly explain what the root cause is
     (one or two sentences). This should include which module or
     function likely triggered the error and why, based on observed
     symptoms (stack trace, failing inputs, or missing state).
@@ -24,7 +24,35 @@ Mandatory Runtime-Error Reporting Rule:
 
 ## Setup & Environment
 
-Activate the bundled virtual environment with `source venv/bin/activate` before running tools. Load credentials from `~/.config/env.d/ai.env`, ensuring it exports `GROQ_API_KEY=gsk_...`; confirm with `echo $GROQ_API_KEY`. Keep `.env`-style files untracked and rely on environment variables when writing scripts or tests that reach the Groq API.
+Activate the bundled virtual environment with `source venv/bin/activate` before running tools. Load credentials from `~/.config/env.d/ai.env`, ensuring it exports `GROQ_API_KEY=gsk_...` or `DEEPSEEK_API_KEY=sk-...`; confirm with `echo $GROQ_API_KEY` or `echo $DEEPSEEK_API_KEY`. Keep `.env`-style files untracked and rely on environment variables when writing scripts or tests that reach the LLM APIs.
+
+## Provider Abstraction Architecture
+
+The EPN system supports multiple LLM providers through a clean abstraction layer:
+
+### Supported Providers
+- **Groq**: Primary provider, optimized for speed and reliability
+- **DeepSeek**: Cost-effective alternative with strong analytical capabilities
+
+### Architecture Components
+- **`llm_providers.py`**: Abstract base class `LLMProvider` defining the interface
+- **`groq_provider.py`**: Groq-specific implementation using the `groq` package
+- **`deepseek_provider.py`**: DeepSeek implementation using OpenAI-compatible SDK
+- **`llm_client.py`**: Provider-agnostic client that delegates to configured provider
+- **Template Configuration**: Provider selection via `templates/prompts.md` or environment variables
+
+### Provider Selection
+Providers can be selected through:
+1. **Template Configuration**: `provider: deepseek` in `## LLM_CONFIG` section
+2. **Environment Variables**: `EPN_LLM_PROVIDER=deepseek`
+3. **Runtime Selection**: `--provider deepseek` in testing scripts
+
+### Adding New Providers
+To add a new LLM provider:
+1. Create `{provider}_provider.py` implementing `LLMProvider`
+2. Add factory case in `llm_providers.py::create_provider()`
+3. Update environment validation in main applications
+4. Create provider-specific template if needed
 
 ## Coding Style & Naming Conventions
 

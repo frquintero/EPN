@@ -29,7 +29,7 @@ semantic integrity, focused on specific aspects of the original inquiry.
 Together they enable comprehensive understanding extraction.
 
 ### Instructions
-1. Output MUST be a JSON object with exactly one field 'query_decomposition'
+1. Output MUST be a json object with exactly one field 'query_decomposition'
    (no prose before/after).
 2. Each array item MUST be a two-element array whose second element ends with the
    exact sentence "Keep your response under 120 words." For example:
@@ -41,10 +41,10 @@ Together they enable comprehensive understanding extraction.
 6. You must determine the ROLE and query_decomposition description for every non-SYNTHESIZER item; the SYNTHESIZER entry is fixed as described in step 4.
 
 ## LLM_CONFIG
-model: openai/gpt-oss-120b
-temperature: 0.8
+provider: deepseek
+model: deepseek-chat
+temperature: 1.0
 max_tokens: 8192
-reasoning_effort: high
 response_format: json_object
 
 ## DEFAULT_WORKER
