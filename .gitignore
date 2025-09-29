@@ -21,3 +21,6 @@ venv/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Test outputs
+test_mcp/

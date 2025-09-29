@@ -83,7 +83,7 @@ def create_provider(provider_name: str, api_key: Optional[str] = None) -> LLMPro
             api_key = GroqProvider.get_api_key_from_env()
         return GroqProvider(api_key)
     elif provider_name.lower() == "deepseek":
-        from deepseek_provider import DeepSeekProvider
+        from scripts.deepseek_provider import DeepSeekProvider
         if api_key is None:
             api_key = DeepSeekProvider.get_api_key_from_env()
         return DeepSeekProvider(api_key)

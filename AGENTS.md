@@ -37,7 +37,7 @@ The EPN system supports multiple LLM providers through a clean abstraction layer
 ### Architecture Components
 - **`llm_providers.py`**: Abstract base class `LLMProvider` defining the interface
 - **`groq_provider.py`**: Groq-specific implementation using the `groq` package
-- **`deepseek_provider.py`**: DeepSeek implementation using OpenAI-compatible SDK
+- **`scripts/deepseek_provider.py`**: DeepSeek implementation using OpenAI-compatible SDK
 - **`llm_client.py`**: Provider-agnostic client that delegates to configured provider
 - **Template Configuration**: Provider selection via `templates/prompts.md` or environment variables
 

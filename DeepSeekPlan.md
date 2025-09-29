@@ -64,7 +64,7 @@ This plan outlines the integration o#### Tasks:
    - Maintain current behavior exactly
    - Use `max_completion_tokens` parameter
 
-3. **Implement DeepSeek Provider** (`deepseek_provider.py`)
+3. **Implement DeepSeek Provider** (`scripts/deepseek_provider.py`)
    - OpenAI-compatible implementation
    - Use `max_tokens` parameter
    - Handle DeepSeek-specific base URL
@@ -195,7 +195,7 @@ This plan outlines the integration o#### Tasks:
 ### Files Modified/Created
 - `llm_providers.py` - Abstract provider interface
 - `groq_provider.py` - Groq implementation
-- `deepseek_provider.py` - DeepSeek implementation
+- `scripts/deepseek_provider.py` - DeepSeek implementation
 - `llm_client.py` - Updated for provider abstraction
 - `llm_config.py` - Added provider field
 - `template_loader.py` - Added provider parsing and dynamic template selection
@@ -245,7 +245,7 @@ This plan outlines the integration o#### Tasks:
 ```
 llm_providers.py      # Abstract provider interface
 groq_provider.py      # Groq implementation
-deepseek_provider.py  # DeepSeek implementation
+scripts/deepseek_provider.py  # DeepSeek implementation
 ```
 
 ### Files Modified:
@@ -379,7 +379,7 @@ deepseek_provider.py  # DeepSeek implementation
 ### Phase 1 Implementation:
 - [ ] Create `llm_providers.py`
 - [ ] Implement `groq_provider.py`
-- [ ] Implement `deepseek_provider.py`
+- [ ] Implement `scripts/deepseek_provider.py`
 - [ ] Update `llm_client.py`
 - [ ] Run existing tests to ensure no regression
 

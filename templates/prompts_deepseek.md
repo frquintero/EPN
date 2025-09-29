@@ -3,7 +3,7 @@
 ## RUN
 # Put the original query inside brackets. Leave empty to use CLI.
 # Example: query: [Why are models useful despite being wrong?]
-query: [Why Palestine and Israel are still at war?]
+query: [Why is there something instead of nothing?]
 
 ## REFORMULATOR
 
