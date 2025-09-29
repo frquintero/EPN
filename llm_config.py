@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional
 
 @dataclass(frozen=True)
 class LLMDefaults:
+    provider: str = "groq"  # New field: LLM provider ('groq' or 'deepseek')
     model: str = "openai/gpt-oss-120b"
     temperature: float = 0.8
     max_tokens: int = 8192
@@ -30,6 +31,7 @@ def get_default_llm_config() -> Dict[str, Any]:
     """Return default config merged with environment overrides.
 
     Environment overrides (optional):
+      - EPN_LLM_PROVIDER ('groq' or 'deepseek')
       - EPN_LLM_MODEL
       - EPN_LLM_TEMPERATURE (float)
       - EPN_LLM_MAX_TOKENS (int)
@@ -37,6 +39,11 @@ def get_default_llm_config() -> Dict[str, Any]:
       - EPN_LLM_RESPONSE_FORMAT ("json_object" currently supported)
     """
     base = asdict(LLMDefaults(response_format=_default_response_format()))
+
+    # Provider override
+    env_provider = os.getenv("EPN_LLM_PROVIDER")
+    if env_provider and env_provider.lower() in ["groq", "deepseek"]:
+        base["provider"] = env_provider.lower()
 
     env_model = os.getenv("EPN_LLM_MODEL")
     if env_model:
@@ -82,7 +89,7 @@ def merge_llm_config(overrides: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if overrides:
         for k, v in overrides.items():
             # Only accept known keys
-            if k in {"model", "temperature", "max_tokens", "reasoning_effort", "response_format"}:
+            if k in {"provider", "model", "temperature", "max_tokens", "reasoning_effort", "response_format"}:
                 merged[k] = v
     # Guarantee response_format present
     if not isinstance(merged.get("response_format"), dict):

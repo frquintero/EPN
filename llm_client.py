@@ -1,9 +1,13 @@
-"""LLM client wrapper for Groq API."""
+"""LLM client wrapper supporting multiple providers (Groq, DeepSeek, etc.)."""
 
 import os
 import json
 from typing import Any, Dict, Optional
-from groq import Groq
+
+# Remove hardcoded groq import - now handled by providers
+# from groq import Groq
+
+from llm_providers import LLMProvider, create_provider
 
 
 class LLMError(Exception):
@@ -12,18 +16,21 @@ class LLMError(Exception):
 
 
 class LLMClient:
-    """Wrapper for Groq API client."""
-    
-    def __init__(self, api_key: Optional[str] = None):
-        """Initialize Groq client."""
-        if api_key is None:
-            api_key = os.environ.get("GROQ_API_KEY")
-        
-        if not api_key:
-            raise ValueError("GROQ_API_KEY environment variable is required")
-        
-        self.client = Groq(api_key=api_key)
-        self._last_raw_response: Optional[str] = None
+    """Wrapper for LLM API clients supporting multiple providers."""
+
+    def __init__(self, provider: Optional[LLMProvider] = None, provider_name: str = "groq", api_key: Optional[str] = None):
+        """Initialize LLM client with specified provider.
+
+        Args:
+            provider: Pre-configured provider instance (optional)
+            provider_name: Provider name if no provider instance given ('groq' or 'deepseek')
+            api_key: API key (optional, will use environment variable)
+        """
+        if provider is not None:
+            self.provider = provider
+        else:
+            # Create provider using factory function
+            self.provider = create_provider(provider_name, api_key)
     
     def call_completion(
         self,
@@ -34,7 +41,7 @@ class LLMClient:
         reasoning_effort: str = "low",
         response_format: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Call Groq chat completion."""
+        """Call LLM completion using the configured provider."""
         # Require all parameters (single source of truth in templates)
         if model is None or temperature is None or max_tokens is None:
             raise LLMError("LLM parameters missing: model/temperature/max_tokens must be set via templates")
@@ -42,48 +49,26 @@ class LLMClient:
             raise LLMError("response_format must be set via templates (e.g., json_object)")
         if isinstance(response_format, str) and response_format.lower() == "json_object":
             response_format = {"type": "json_object"}
-        
+
         try:
-            messages = []
-            # Keep messages minimal; prompt carries all guidance
-            messages.append({"role": "user", "content": prompt})
-            
-            completion = self.client.chat.completions.create(
+            # Delegate to provider
+            return self.provider.call_completion(
+                prompt=prompt,
                 model=model,
-                messages=messages,
                 temperature=temperature,
-                max_completion_tokens=max_tokens,
+                max_tokens=max_tokens,
+                reasoning_effort=reasoning_effort,
                 response_format=response_format
             )
-            
-            content = completion.choices[0].message.content
-            self._last_raw_response = content
-            
-            # Handle JSON response (fail-fast without auto-correction)
-            if response_format.get("type") == "json_object":
-                try:
-                    parsed = json.loads(content)
-                    return parsed
-                except json.JSONDecodeError as e:
-                    raise LLMError(f"Failed to parse JSON response: {e}\nContent: {content}")
-            
-            return {"content": content}
-            
+
         except Exception as e:
             raise LLMError(f"LLM call failed: {str(e)}")
 
     @property
     def last_raw_response(self) -> Optional[str]:
         """Return raw content from the most recent LLM call."""
-        return self._last_raw_response
-    
+        return self.provider.last_raw_response
+
     def test_connection(self) -> bool:
-        """Test API connection."""
-        try:
-            response = self.call_completion(
-                prompt="Return a simple JSON object: {\"test\": \"success\"}",
-                max_tokens=100
-            )
-            return "test" in response and response["test"] == "success"
-        except Exception:
-            return False
+        """Test API connection using the provider."""
+        return self.provider.test_connection()

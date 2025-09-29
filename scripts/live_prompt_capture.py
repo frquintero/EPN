@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from argparse import ArgumentParser
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +18,7 @@ if str(ROOT) not in sys.path:
 from llm_client import LLMClient
 from worker_node import WorkerNode
 from mini_ccn import MiniCCN, CCNError
-from template_loader import repo as template_repo
+from template_loader import repo
 
 
 @dataclass
@@ -31,12 +32,22 @@ class RoleLog:
 
 
 def main() -> None:
-    # Allow custom query via CLI arg, else use default; prompts.md may override
-    cli_query = sys.argv[1] if len(sys.argv) > 1 else "Why is there something than nothing"
-    override = template_repo().get_initial_query()
-    query = override if override else cli_query
+    parser = ArgumentParser(description="Run a live CCN cycle and capture prompts/responses for analysis.")
+    parser.add_argument("query", nargs="?", default="Why is there something than nothing",
+                       help="The query to process (default: 'Why is there something than nothing')")
+    parser.add_argument("--provider", choices=["groq", "deepseek"], default="groq",
+                       help="LLM provider to use (default: groq)")
+    args = parser.parse_args()
 
-    client = LLMClient()
+    # Select template based on provider
+    template_path = f"templates/prompts_{args.provider}.md" if args.provider != "groq" else "templates/prompts.md"
+    template_repo = repo(template_path)
+
+    # Allow prompts.md to override the input query if present
+    override = template_repo.get_initial_query()
+    query = override if override else args.query
+
+    client = LLMClient(provider_name=args.provider)
     worker_node = WorkerNode(client)
     ccn = MiniCCN(worker_node, debug=False)
 
@@ -77,13 +88,15 @@ def main() -> None:
     output_dir = Path("reports")
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = output_dir / f"live_run_{timestamp}.txt"
+    provider_suffix = f"_{args.provider}" if args.provider != "groq" else ""
+    output_path = output_dir / f"live_run_{timestamp}{provider_suffix}.txt"
 
     final_text = result if isinstance(result, str) else json.dumps(result, indent=2)
 
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("CCN Live Run Capture\n")
         handle.write(f"Timestamp: {timestamp}\n")
+        handle.write(f"Provider: {args.provider}\n")
         handle.write(f"Query: {query}\n")
         handle.write("=" * 80 + "\n\n")
         handle.write("Final Synthesis:\n")
