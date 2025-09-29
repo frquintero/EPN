@@ -6,7 +6,7 @@ Mandatory Runtime-Error Reporting Rule:
   `RuntimeError` during development or while running the pipeline, the
   agent must, before applying code changes, do the following and include
   the results in the commit/PR description or in an accompanying note:
-  1. **Diagnosis:** Briefly explain what you think the root cause is
+  1. **Diagnosis:** Briefly explain what the root cause is
     (one or two sentences). This should include which module or
     function likely triggered the error and why, based on observed
     symptoms (stack trace, failing inputs, or missing state).
