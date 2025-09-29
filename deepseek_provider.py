@@ -18,7 +18,7 @@ class DeepSeekProvider(LLMProvider):
         super().__init__(api_key)
         self.client = OpenAI(
             api_key=api_key,
-            base_url="https://api.deepseek.com"
+            base_url="https://api.deepseek.com/v1"
         )
         self._last_raw_response: Optional[str] = None
 
@@ -43,7 +43,17 @@ class DeepSeekProvider(LLMProvider):
             response_format=response_format
         )
 
-        content = completion.choices[0].message.content
+        # Validate response structure
+        if not getattr(completion, "choices", None):
+            raise ValueError("DeepSeek returned no choices")
+        if not completion.choices:
+            raise ValueError("DeepSeek returned empty choices list")
+        
+        msg = completion.choices[0].message
+        content = getattr(msg, "content", None)
+        if not content:
+            raise ValueError("DeepSeek returned empty content")
+
         self._last_raw_response = content
 
         # Handle JSON response

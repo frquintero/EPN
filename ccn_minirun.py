@@ -36,11 +36,11 @@ def validate_environment() -> str:
     provider = config.get("provider", "groq")
 
     if provider == "groq":
-        if "GROQ_API_KEY" not in os.environ:
+        if not os.getenv("GROQ_API_KEY"):
             console.print("[red]Error: GROQ_API_KEY environment variable is required for Groq provider[/red]")
             sys.exit(1)
     elif provider == "deepseek":
-        if "DEEPSEEK_API_KEY" not in os.environ:
+        if not os.getenv("DEEPSEEK_API_KEY"):
             console.print("[red]Error: DEEPSEEK_API_KEY environment variable is required for DeepSeek provider[/red]")
             sys.exit(1)
     else:

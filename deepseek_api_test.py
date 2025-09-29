@@ -88,6 +88,7 @@ def test_json_output(client):
             print(f"Parsed JSON: {json.dumps(parsed, indent=2)}")
         except json.JSONDecodeError as e:
             print(f"⚠️  Response is not valid JSON: {e}")
+            return False
 
         return True
     except Exception as e:
