@@ -166,6 +166,107 @@ def test_schema_validation():
         print(f"✗ Schema validation test failed: {e}")
         return False
 
+def test_yaml_frontmatter_parsing():
+    """Test YAML frontmatter template parsing with provider selection."""
+    print("\nTesting YAML frontmatter parsing...")
+    try:
+        from template_loader import PromptsRepository, RoleTemplate
+        import tempfile
+        import os
+        
+        # Create a test YAML template
+        test_template = """---
+version: "1.0"
+format: "yaml-frontmatter"
+
+REFORMULATOR:
+  task: |
+    ROLE: REFORMULATOR
+    Test task content
+  instructions: |
+    Test instructions
+
+ELUCIDATOR:
+  task: |
+    ROLE: ELUCIDATOR
+    Test elucidator task
+  instructions: |
+    Test elucidator instructions
+
+LLM_CONFIGS:
+  groq:
+    provider: groq
+    model: test-model
+    temperature: 0.8
+  deepseek:
+    provider: deepseek
+    model: deepseek-test
+    temperature: 1.0
+
+SELECTED_PROVIDER: groq
+
+RUN:
+  query: "Test query"
+---
+# Content below frontmatter
+"""
+
+        # Write to temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+            f.write(test_template)
+            temp_path = f.name
+        
+        try:
+            # Test loading
+            repo = PromptsRepository(temp_path)
+            
+            # Test template loading
+            reformulator = repo.get_template('REFORMULATOR')
+            assert reformulator is not None
+            assert 'ROLE: REFORMULATOR' in reformulator.task
+            assert 'Test instructions' in reformulator.instructions
+            print("✓ REFORMULATOR template loaded correctly")
+            
+            elucidator = repo.get_template('ELUCIDATOR')
+            assert elucidator is not None
+            assert 'ROLE: ELUCIDATOR' in elucidator.task
+            print("✓ ELUCIDATOR template loaded correctly")
+            
+            # Test provider selection
+            assert repo.get_selected_provider() == 'groq'
+            assert repo.set_provider('deepseek') == True
+            assert repo.get_selected_provider() == 'deepseek'
+            print("✓ Provider selection working")
+            
+            # Test LLM config retrieval (should return deepseek config after switching)
+            deepseek_config = repo.get_llm_overrides()
+            assert deepseek_config.get('provider') == 'deepseek'
+            assert deepseek_config.get('model') == 'deepseek-test'
+            print("✓ LLM config retrieval working")
+            
+            # Test available providers
+            providers = repo.get_available_providers()
+            assert 'groq' in providers
+            assert 'deepseek' in providers
+            print("✓ Available providers listing working")
+            
+            # Test initial query
+            query = repo.get_initial_query()
+            assert query == "Test query"
+            print("✓ Initial query parsing working")
+            
+            return True
+            
+        finally:
+            # Clean up
+            os.unlink(temp_path)
+            
+    except Exception as e:
+        print(f"✗ YAML frontmatter parsing test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 def test_cli_basic():
     """Test CLI basic functionality."""
     print("\nTesting CLI basic functionality...")
@@ -209,6 +310,7 @@ def run_all_tests():
         test_synaptic_validation,
         test_node_templates,
         test_schema_validation,
+        test_yaml_frontmatter_parsing,
         test_cli_basic
     ]
     

@@ -273,7 +273,8 @@ By default, CCN binds values into `attributes.input_signals` per role type:
   by the template). For each
   `[label, qd_string]`, extract `<ROLE_NAME>`, then:
   - set `attributes.node_id = <ROLE_NAME>`
-  - set `input_signals[0] = qd_string` (entire string with `ROLE:`)
+  - set `input_signals[1] = reformulated_question` (contextual awareness)
+  - set `input_signals[2] = qd_string` (entire string with `ROLE:`)
   - leave `attributes.tasks` empty unless the role explicitly requires it
 - Worker Roles → Aggregator: append `node_output_signal` to Aggregator Buffer.
 - ELUCIDATOR (final decomposition) → SYNTHESIZER: bind the
@@ -309,7 +310,8 @@ renders the final text sent to the LLM.
 
 - Sources (materialized Role object)
 - `attributes.input_signals`: primary content inputs. For worker roles,
-    `input_signals[0]` is the ELUCIDATOR decomposition string (authoritative
+    `input_signals[1]` is the reformulated question (contextual awareness),
+    `input_signals[2]` is the ELUCIDATOR decomposition string (authoritative
     directive including `ROLE:`). Origin: bound by CCN per Binding Rules.
   - `attributes.tasks`: role/task directive text. For worker roles this is
     typically empty; built-in roles (REFORMULATOR/ELUCIDATOR) may carry a

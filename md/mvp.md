@@ -86,7 +86,7 @@ invokes the plan directly and honors `call_plan` (validated to
 
 - User input → REFORMULATOR: bind query → `attributes.input_signals[0]`.
 - REFORMULATOR → ELUCIDATOR: parse JSON, extract `reformulated_question` → `attributes.input_signals[0]`.
-- ELUCIDATOR → Worker Roles: parse object, read `query_decomposition` (count governed by template). For each item `[label, qd_string]`, extract `<ROLE_NAME>` from `qd_string`, set `attributes.node_id = <ROLE_NAME>`, and bind `reformulated_question` → `attributes.input_signals[0]`, `qd_string` → `attributes.input_signals[1]`. Do not populate `attributes.tasks` unless required by the role.
+- ELUCIDATOR → Worker Roles: parse object, read `query_decomposition` (count governed by template). For each item `[label, qd_string]`, extract `<ROLE_NAME>` from `qd_string`, set `attributes.node_id = <ROLE_NAME>`, and bind `reformulated_question` → `attributes.input_signals[1]`, `qd_string` → `attributes.input_signals[2]`. Do not populate `attributes.tasks` unless required by the role.
 - Workers → SYNTHESIZER: append `node_output_signal` to Aggregator Buffer.
 - ELUCIDATOR (final decomposition) → SYNTHESIZER: bind
   `reformulated_question` → `attributes.input_signals[0]`, then bind each
@@ -96,7 +96,7 @@ invokes the plan directly and honors `call_plan` (validated to
 
 ## Prompt Construction (guide)
 
-- Sources: attributes.input_signals (index 0 is the reformulated question for analytical context, index 1 is the authoritative decomposition string for worker roles), attributes.instructions (role-specific), llm_config.
+- Sources: attributes.input_signals (index 1 is the reformulated question for analytical context, index 2 is the authoritative decomposition string for worker roles), attributes.instructions (role-specific), llm_config.
 - Layout: header (Role), Inputs (Input[i]: ...), optional Instructions. No fallbacks. Worker roles and SYNTHESIZER must return `{ "node_output_signal": "<text>" }`; REFORMULATOR and ELUCIDATOR must return their respective envelopes as above. Worker roles should keep outputs ≤70 words; SYNTHESIZER ≤140 words.
 - Log before LLM call: record a `prompt_window` (prompt text + llm_config).
 

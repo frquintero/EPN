@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
+from rich.console import Console
+
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -19,6 +21,9 @@ from llm_client import LLMClient
 from worker_node import WorkerNode
 from mini_ccn import MiniCCN, CCNError
 from template_loader import repo
+
+
+console = Console()
 
 
 @dataclass
@@ -35,26 +40,35 @@ def main() -> None:
     parser = ArgumentParser(description="Run a live CCN cycle and capture prompts/responses for analysis.")
     parser.add_argument("query", nargs="?", default="Why is there something than nothing",
                        help="The query to process (default: 'Why is there something than nothing')")
-    parser.add_argument("--provider", choices=["groq", "deepseek"], default="groq",
-                       help="LLM provider to use (default: groq)")
+    parser.add_argument("--provider", choices=["groq", "deepseek"], 
+                       help="LLM provider to use (default: from template)")
     args = parser.parse_args()
 
-    # Select template based on provider
-    template_path = f"templates/prompts_{args.provider}.md" if args.provider != "groq" else "templates/prompts.md"
-    template_repo = repo(template_path)
+    # Use unified template (provider selection handled internally)
+    template_repo = repo()
+
+    # Set the provider: use CLI arg if provided, otherwise use template default
+    provider_to_use = args.provider if args.provider is not None else template_repo.get_selected_provider()
+    
+    if not template_repo.set_provider(provider_to_use):
+        console.print(f"[red]Error: Unsupported provider '{provider_to_use}'[/red]")
+        return 1
 
     # Allow prompts.md to override the input query if present
     override = template_repo.get_initial_query()
     query = override if override else args.query
 
-    client = LLMClient(provider_name=args.provider)
+    client = LLMClient(provider_name=provider_to_use)
     worker_node = WorkerNode(client)
     ccn = MiniCCN(worker_node, debug=False)
 
     try:
         result = ccn.execute(query)
+        execution_success = True
     except CCNError as exc:
-        raise SystemExit(f"CCN execution failed: {exc}") from exc
+        console.print(f"[red]CCN execution failed: {exc}[/red]")
+        result = f"ERROR: {exc}"
+        execution_success = False
 
     role_logs: Dict[str, RoleLog] = {}
     ordered_roles = []
@@ -88,7 +102,7 @@ def main() -> None:
     output_dir = Path("reports")
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    provider_suffix = f"_{args.provider}" if args.provider != "groq" else ""
+    provider_suffix = f"_{provider_to_use}" if provider_to_use != "groq" else ""
     output_path = output_dir / f"live_run_{timestamp}{provider_suffix}.txt"
 
     final_text = result if isinstance(result, str) else json.dumps(result, indent=2)
@@ -96,8 +110,9 @@ def main() -> None:
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write("CCN Live Run Capture\n")
         handle.write(f"Timestamp: {timestamp}\n")
-        handle.write(f"Provider: {args.provider}\n")
+        handle.write(f"Provider: {provider_to_use}\n")
         handle.write(f"Query: {query}\n")
+        handle.write(f"Execution Success: {execution_success}\n")
         handle.write("=" * 80 + "\n\n")
         handle.write("Final Synthesis:\n")
         handle.write(final_text + "\n\n")

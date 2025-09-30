@@ -165,7 +165,7 @@ User/Template Query → REFORMULATOR → reformulated_question (JSON)
         ↓
 ELUCIDATOR → query_decomposition (JSON; item count per template)
         ↓
-Worker Roles → node_output_signal (JSON; Input[0]=reformulated_question, Input[1]=decomposition string)
+Worker Roles → node_output_signal (JSON; Input[1]=reformulated_question, Input[2]=decomposition string)
         ↓
 SYNTHESIZER → node_output_signal (JSON)
 ```
@@ -301,8 +301,10 @@ EPN/
 ├── ccn_minirun.py          # CLI entrypoint
 ├── demo_ccn.py             # Interactive/demo runner
 ├── example_usage.py        # Usage examples / quickstart snippets
-├── IMPLEMENTATION_SUMMARY.md
-├── conceptualization.md
+├── md/                     # Documentation files
+│   ├── IMPLEMENTATION_SUMMARY.md
+│   ├── conceptualization.md
+│   └── ...
 ├── template_loader.py      # Template parsing / binding helpers
 ├── llm_client.py           # Groq API wrapper
 ├── llm_config.py           # Hardcoded defaults and config helpers

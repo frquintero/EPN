@@ -41,6 +41,21 @@ The EPN system supports multiple LLM providers through a clean abstraction layer
 - **`llm_client.py`**: Provider-agnostic client that delegates to configured provider
 - **Template Configuration**: Provider selection via `templates/prompts.md` or environment variables
 
+### Worker Context Enhancement
+The EPN system implements improved contextual flow for worker roles to ensure analytical coherence:
+
+**Data Flow Enhancement:**
+- **REFORMULATOR** establishes the multi-level analytical framework
+- **ELUCIDATOR** creates worker role specifications
+- **Worker Roles** now receive both the reformulated question (Input[1]) and their specific role description (Input[2]) for contextual awareness
+- **SYNTHESIZER** integrates contextually aligned worker outputs
+
+**Benefits:**
+- Workers maintain awareness of the established analytical framework
+- Improved coherence across all processing pipeline roles
+- Enhanced synthesis quality through better contextual alignment
+- Maintained epistemological integrity across the entire system
+
 ### Provider Selection
 Providers can be selected through:
 1. **Template Configuration**: `provider: deepseek` in `## LLM_CONFIG` section
@@ -68,7 +83,7 @@ Never commit API keys or local environment files. When writing integration tests
 
 ## Docs Index (brief)
 
-The repository keeps user-facing and design documentation under `docs/` (except `AGENTS.md` which stays at the project root). Below is a short index of the important Markdown files and their purpose:
+The repository keeps user-facing and design documentation under `md/` (except `AGENTS.md` which stays at the project root). Below is a short index of the important Markdown files and their purpose:
 
 If you add or move documentation, please update this index so the next maintainer can find key files quickly.
 

@@ -1,7 +1,7 @@
-"""Simple loader for templates/prompts.md.
+"""YAML frontmatter loader for templates/prompts.md.
 
-Parses per-role sections and extracts Task/Instructions bodies, along with
-an optional global LLM config override section.
+Parses YAML frontmatter sections and extracts role templates, LLM configurations,
+and provider selection logic.
 """
 
 from __future__ import annotations
@@ -12,6 +12,11 @@ import re
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
+try:
+    import yaml
+except ImportError:
+    yaml = None  # type: ignore
+
 
 @dataclass
 class RoleTemplate:
@@ -20,18 +25,23 @@ class RoleTemplate:
 
 
 class PromptsRepository:
-    """Repository for role templates and LLM config overrides."""
+    """Repository for role templates and LLM config with provider selection."""
 
     def __init__(self, path: Optional[str] = None) -> None:
+        if yaml is None:
+            raise ImportError("PyYAML is required for template loading. Install with: pip install PyYAML")
+
         self.root = os.path.dirname(os.path.abspath(__file__))
         self.path = path or os.path.join(self.root, "templates", "prompts.md")
         self._loaded = False
         self._exists = False
         self._templates: Dict[str, RoleTemplate] = {}
-        self._llm_overrides: Dict[str, object] = {}
+        self._llm_configs: Dict[str, Dict] = {}  # Multiple provider configs
+        self._selected_provider: str = "groq"  # Default provider
         self._sha256: Optional[str] = None
         self._initial_query: Optional[str] = None
         self._initial_query_error: Optional[str] = None
+        self._frontmatter: Dict = {}
 
     def _compute_sha256(self, data: str) -> str:
         return hashlib.sha256(data.encode("utf-8")).hexdigest()
@@ -44,11 +54,90 @@ class PromptsRepository:
             self._exists = False
             self._loaded = True
             return
+
         with open(self.path, "r", encoding="utf-8") as f:
             content = f.read()
+
         self._exists = True
         self._sha256 = self._compute_sha256(content)
 
+        # Parse YAML frontmatter
+        frontmatter, _ = self._parse_frontmatter(content)
+        if not frontmatter:
+            # Fallback to old markdown parsing for backward compatibility
+            self._load_markdown_fallback(content)
+            return
+
+        self._frontmatter = frontmatter
+        self._load_from_frontmatter(frontmatter)
+        self._loaded = True
+
+    def _parse_frontmatter(self, content: str) -> Tuple[Dict, str]:
+        """Parse YAML frontmatter from content. Returns (frontmatter_dict, remaining_content)."""
+        if not content.startswith('---'):
+            return {}, content
+
+        # Find the end of frontmatter
+        lines = content.split('\n')
+        end_idx = -1
+        for i, line in enumerate(lines[1:], 1):  # Skip first ---
+            if line.strip() == '---':
+                end_idx = i
+                break
+
+        if end_idx == -1:
+            return {}, content  # No closing ---
+
+        frontmatter_text = '\n'.join(lines[1:end_idx])
+        remaining_content = '\n'.join(lines[end_idx + 1:]) if end_idx + 1 < len(lines) else ''
+
+        try:
+            frontmatter = yaml.safe_load(frontmatter_text) or {}
+            return frontmatter, remaining_content
+        except yaml.YAMLError:
+            return {}, content  # Fallback on parse error
+
+    def _load_from_frontmatter(self, frontmatter: Dict) -> None:
+        """Load templates and configs from parsed YAML frontmatter."""
+        # Load role templates
+        for role_name, role_data in frontmatter.items():
+            if role_name in ['LLM_CONFIGS', 'LLM_CONFIG', 'SELECTED_PROVIDER', 'RUN', 'version', 'format']:
+                continue  # Skip special sections
+
+            if isinstance(role_data, dict):
+                task = role_data.get('task')
+                instructions = role_data.get('instructions')
+                if task or instructions:
+                    self._templates[role_name] = RoleTemplate(task=task, instructions=instructions)
+
+        # Load LLM configurations
+        llm_configs = frontmatter.get('LLM_CONFIGS', {})
+        if llm_configs:
+            self._llm_configs = llm_configs
+        else:
+            # Fallback to single LLM_CONFIG for backward compatibility
+            llm_config = frontmatter.get('LLM_CONFIG', {})
+            if llm_config:
+                self._llm_configs = {'groq': llm_config}
+
+        # Load selected provider
+        selected_provider = frontmatter.get('SELECTED_PROVIDER', 'groq')
+        if selected_provider in self._llm_configs:
+            self._selected_provider = selected_provider
+
+        # Load initial query
+        run_section = frontmatter.get('RUN', {})
+        if isinstance(run_section, dict):
+            query = run_section.get('query')
+            if query:
+                # Remove brackets if present
+                if query.startswith('[') and query.endswith(']'):
+                    query = query[1:-1].strip()
+                if query:
+                    self._initial_query = query
+
+    def _load_markdown_fallback(self, content: str) -> None:
+        """Fallback to old markdown parsing for backward compatibility."""
         # Split into sections by role header '## <ID>' (uppercase + underscores)
         # Keep LLM_CONFIG as a special section
         pattern = re.compile(r"^##\s+([A-Z0-9_]+)\s*$", re.MULTILINE)
@@ -60,7 +149,7 @@ class PromptsRepository:
             body = content[start:end]
 
             if role_id == "LLM_CONFIG":
-                self._llm_overrides = self._parse_llm_overrides(body)
+                self._llm_configs = {'groq': self._parse_llm_overrides(body)}
                 continue
             if role_id == "RUN":
                 q, err = self._parse_initial_query(body)
@@ -72,8 +161,6 @@ class PromptsRepository:
 
             role_template = self._parse_role_template(body)
             self._templates[role_id] = role_template
-
-        self._loaded = True
 
     def _parse_subsection(self, body: str, title: str) -> Optional[str]:
         # Find '### {title}' and capture text until next '###' or end
@@ -168,8 +255,27 @@ class PromptsRepository:
         return self._templates.get(role_id)
 
     def get_llm_overrides(self) -> Dict[str, object]:
+        """Return LLM config for the selected provider."""
         self.load()
-        return dict(self._llm_overrides)
+        return dict(self._llm_configs.get(self._selected_provider, {}))
+
+    def get_selected_provider(self) -> str:
+        """Return the currently selected provider."""
+        self.load()
+        return self._selected_provider
+
+    def get_available_providers(self) -> list[str]:
+        """Return list of available providers."""
+        self.load()
+        return list(self._llm_configs.keys())
+
+    def set_provider(self, provider: str) -> bool:
+        """Set the active provider. Returns True if successful."""
+        self.load()
+        if provider in self._llm_configs:
+            self._selected_provider = provider
+            return True
+        return False
 
     def get_sha256(self) -> Optional[str]:
         self.load()
