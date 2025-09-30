@@ -119,7 +119,7 @@ executing them in FIFO order.
   - Bind: ELUCIDATOR `input_signals[0] = reformulated_question`
 - ELUCIDATOR
   - Emit: `{ "query_decomposition": [[label, qd_string], ...] }`
-  - Bind: for each item, worker `node_id` from qd_string; worker `input_signals[0] = qd_string`
+  - Bind: for each item, worker `node_id` from qd_string; worker `input_signals[0] = reformulated_question`, `input_signals[1] = qd_string`
 - Worker roles
   - Emit: `{ "node_output_signal": "<text>" }` (keep under 70 words)
   - CCN: append to Aggregator Buffer (not bound to the “next worker”)

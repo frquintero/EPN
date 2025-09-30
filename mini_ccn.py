@@ -187,7 +187,11 @@ class MiniCCN:
             role_name = spec['role_name']
             target_role.node_id = role_name
             target_role.entry_id = f"{role_name.lower()}_{spec['index']:03}"
-            target_role.input_signals = [spec['raw_text']]
+            # Include reformulated question as context for workers, similar to SYNTHESIZER
+            inputs = [spec['raw_text']]
+            if isinstance(self.reformulated_question, str) and self.reformulated_question:
+                inputs = [self.reformulated_question] + inputs
+            target_role.input_signals = inputs
             target_role.tasks = []
             # Preserve any default worker instructions from the template (e.g., 70-word limit)
             target_role.llm_config.setdefault('response_format', {'type': 'json_object'})

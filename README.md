@@ -13,7 +13,7 @@ This CLI application implements a complete CCN execution cycle:
 1. REFORMULATOR → reformulates the input into an epistemically sound question.
 2. ELUCIDATOR → decomposes into role‑labeled items plus a final SYNTHESIZER
    directive (counts/word caps defined in templates).
-3. Worker Roles → execute against the decomposition string in `Input[1]`.
+3. Worker Roles → execute against the reformulated question (Input[0]) and decomposition string (Input[1]) for analytical coherence.
 4. SYNTHESIZER → integrates worker outputs per the final directive.
 
 ## Features
@@ -165,7 +165,7 @@ User/Template Query → REFORMULATOR → reformulated_question (JSON)
         ↓
 ELUCIDATOR → query_decomposition (JSON; item count per template)
         ↓
-Worker Roles → node_output_signal (JSON; length capped by Input[1] text)
+Worker Roles → node_output_signal (JSON; Input[0]=reformulated_question, Input[1]=decomposition string)
         ↓
 SYNTHESIZER → node_output_signal (JSON)
 ```

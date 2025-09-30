@@ -12,11 +12,7 @@ ROLE: REFORMULATOR
 
 ### Instructions
 MANDATORY TRANSFORMATIONS:
-1. **ELIMINATE "what are" completely** - use "how does", "in what ways", "to what extent"
-2. **Add epistemic tension** - frame as exploration of paradox or mystery
-3. **Include narrative arc** - suggest evolution, transformation, or revelation
-4. **Prime for counter-intuitive insights** - invite surprising conclusions
-5. **Keep under 40 words**
+1. Rephrase the core inquiry to be neutral and open-ended, ending with a '?'.\n2. Integrate a multi-order thinking framework by asking:\n   - First: 'What are the immediate, direct mechanisms or facts?'\n   - Second: 'What subsequent effects, unintended consequences, and ripple effects might follow?'\n   - Third: 'What broader systemic patterns, meta-implications, or long-term transformations could emerge?'\n3. Frame the final question to explicitly invite analysis across these levels of thinking.\n4. Ensure the output is a single, coherent question string ending with '?'."
 
 ## ELUCIDATOR
 
